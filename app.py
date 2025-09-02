@@ -13,6 +13,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+def limpiar_columnas_duplicadas(df):
+    """
+    Elimina columnas duplicadas de un DataFrame
+    """
+    if df is None or df.empty:
+        return df
+    
+    # Verificar si hay columnas duplicadas
+    if df.columns.duplicated().any():
+        st.warning(f"⚠️ Columnas duplicadas encontradas: {df.columns[df.columns.duplicated()].tolist()}")
+        
+        # Eliminar columnas duplicadas (mantener la primera)
+        df_limpio = df.loc[:, ~df.columns.duplicated()]
+        
+        st.success(f"✅ DataFrame limpiado: {len(df.columns)} -> {len(df_limpio.columns)} columnas")
+        return df_limpio
+    
+    return df
+
 def parsear_recibo_liquidacion(contenido_archivo):
     """
     Parsea un archivo de recibos de liquidación con formato específico
@@ -171,13 +190,26 @@ def procesar_archivos(archivo_liquidacion, archivo_masterdata):
                 how='left',
                 suffixes=('_liquidacion', '_masterdata')
             )
+            
+            # ✅ SOLUCIÓN: Limpiar columnas duplicadas después del merge
+            resultado_df = limpiar_columnas_duplicadas(resultado_df)
+            
         else:
             resultado_df = liquidacion_df
+            # También limpiar liquidacion_df por si acaso
+            resultado_df = limpiar_columnas_duplicadas(resultado_df)
+        
+        # También limpiar los otros DataFrames
+        liquidacion_df = limpiar_columnas_duplicadas(liquidacion_df)
+        masterdata_df = limpiar_columnas_duplicadas(masterdata_df)
         
         return resultado_df, liquidacion_df, masterdata_df
         
     except Exception as e:
         st.error(f"Error durante el procesamiento: {str(e)}")
+        st.error(f"Detalles del error: {type(e).__name__}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return None, None, None
 
 def crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df):
@@ -186,76 +218,86 @@ def crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df):
     """
     output = io.BytesIO()
     
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+    try:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            
+            if resultado_df is not None:
+                # Limpiar columnas duplicadas antes de escribir
+                resultado_df_limpio = limpiar_columnas_duplicadas(resultado_df)
+                
+                # Hoja con datos combinados
+                resultado_df_limpio.to_excel(writer, sheet_name='Datos_Combinados', index=False)
+                
+                # Crear hoja "Netos" similar al archivo original - mismo formato que el código Python
+                netos_df = resultado_df_limpio.copy()
+                
+                # Reorganizar columnas para que se parezca al formato original
+                columnas_netos = []
+                if 'NETO' in netos_df.columns:
+                    columnas_netos.append('NETO')
+                if 'SALARIO' in netos_df.columns:
+                    columnas_netos.append('SALARIO')
+                
+                # Buscar columna SAP
+                sap_col = None
+                for col in ['SAP']:
+                    if col in netos_df.columns:
+                        columnas_netos.append(col)
+                        sap_col = col
+                        break
+                
+                # Agregar otras columnas importantes
+                for col in ['CEDULA', 'NOMBRE', 'REGIONAL', 'CE_COSTE', 'F_ING', 'CARGO']:
+                    if col in netos_df.columns:
+                        columnas_netos.append(col)
+                
+                # Agregar columnas restantes
+                for col in netos_df.columns:
+                    if col not in columnas_netos:
+                        columnas_netos.append(col)
+                
+                netos_df = netos_df[columnas_netos]
+                netos_df.to_excel(writer, sheet_name='Netos', index=False)
+                
+            else:
+                # Si no hay merge, solo datos de liquidación
+                liquidacion_df_limpio = limpiar_columnas_duplicadas(liquidacion_df)
+                liquidacion_df_limpio.to_excel(writer, sheet_name='Liquidacion', index=False)
+            
+            # Hoja MASTERDATA
+            if masterdata_df is not None:
+                masterdata_df_limpio = limpiar_columnas_duplicadas(masterdata_df)
+                masterdata_df_limpio.to_excel(writer, sheet_name='MASTERDATA', index=False)
+            
+            # Información del procesamiento - mismo formato que el código Python original
+            info_data = {
+                'Información': [
+                    'Archivo procesado el:',
+                    'Empleados en Liquidación:',
+                    'Registros en MASTERDATA:',
+                    'Empleados con match:',
+                    'Columna de unión Liquidación:',
+                    'Columna de unión MASTERDATA:'
+                ],
+                'Valor': [
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    len(liquidacion_df) if liquidacion_df is not None else 0,
+                    len(masterdata_df) if masterdata_df is not None else 0,
+                    resultado_df[resultado_df.columns[resultado_df.columns.str.contains('Nº pers.', na=False)]].iloc[:, 0].notna().sum() if resultado_df is not None and any(resultado_df.columns.str.contains('Nº pers.', na=False)) else 0,
+                    'SAP' if liquidacion_df is not None and 'SAP' in liquidacion_df.columns else 'No encontrada',
+                    'Nº pers.' if masterdata_df is not None and 'Nº pers.' in masterdata_df.columns else 'No encontrada'
+                ]
+            }
+            
+            info_df = pd.DataFrame(info_data)
+            info_df.to_excel(writer, sheet_name='Info_Procesamiento', index=False)
         
-        if resultado_df is not None:
-            # Hoja con datos combinados
-            resultado_df.to_excel(writer, sheet_name='Datos_Combinados', index=False)
-            
-            # Crear hoja "Netos" similar al archivo original - mismo formato que el código Python
-            netos_df = resultado_df.copy()
-            
-            # Reorganizar columnas para que se parezca al formato original
-            columnas_netos = []
-            if 'NETO' in netos_df.columns:
-                columnas_netos.append('NETO')
-            if 'SALARIO' in netos_df.columns:
-                columnas_netos.append('SALARIO')
-            
-            # Buscar columna SAP
-            sap_col = None
-            for col in ['SAP']:
-                if col in netos_df.columns:
-                    columnas_netos.append(col)
-                    sap_col = col
-                    break
-            
-            # Agregar otras columnas importantes
-            for col in ['CEDULA', 'NOMBRE', 'REGIONAL', 'CE_COSTE', 'F_ING', 'CARGO']:
-                if col in netos_df.columns:
-                    columnas_netos.append(col)
-            
-            # Agregar columnas restantes
-            for col in netos_df.columns:
-                if col not in columnas_netos:
-                    columnas_netos.append(col)
-            
-            netos_df = netos_df[columnas_netos]
-            netos_df.to_excel(writer, sheet_name='Netos', index=False)
-            
-        else:
-            # Si no hay merge, solo datos de liquidación
-            liquidacion_df.to_excel(writer, sheet_name='Liquidacion', index=False)
+        output.seek(0)
+        return output
         
-        # Hoja MASTERDATA
-        if masterdata_df is not None:
-            masterdata_df.to_excel(writer, sheet_name='MASTERDATA', index=False)
-        
-        # Información del procesamiento - mismo formato que el código Python original
-        info_data = {
-            'Información': [
-                'Archivo procesado el:',
-                'Empleados en Liquidación:',
-                'Registros en MASTERDATA:',
-                'Empleados con match:',
-                'Columna de unión Liquidación:',
-                'Columna de unión MASTERDATA:'
-            ],
-            'Valor': [
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                len(liquidacion_df) if liquidacion_df is not None else 0,
-                len(masterdata_df) if masterdata_df is not None else 0,
-                resultado_df[resultado_df.columns[resultado_df.columns.str.contains('Nº pers.', na=False)]].iloc[:, 0].notna().sum() if resultado_df is not None and any(resultado_df.columns.str.contains('Nº pers.', na=False)) else 0,
-                'SAP' if liquidacion_df is not None and 'SAP' in liquidacion_df.columns else 'No encontrada',
-                'Nº pers.' if masterdata_df is not None and 'Nº pers.' in masterdata_df.columns else 'No encontrada'
-            ]
-        }
-        
-        info_df = pd.DataFrame(info_data)
-        info_df.to_excel(writer, sheet_name='Info_Procesamiento', index=False)
-    
-    output.seek(0)
-    return output
+    except Exception as e:
+        st.error(f"Error al crear archivo Excel: {str(e)}")
+        return None
 
 def main():
     # Título principal
@@ -272,6 +314,7 @@ def main():
     - ✅ Combina con datos de MASTERDATA (Excel/XLSB)
     - ✅ Genera archivo Excel con múltiples hojas
     - ✅ Interfaz web fácil de usar
+    - ✅ **Detección y limpieza automática de columnas duplicadas**
     """)
     
     # Sidebar para carga de archivos
@@ -320,6 +363,10 @@ def main():
                     with col4:
                         st.metric("📋 Total columnas", len(resultado_df.columns))
                     
+                    # Mostrar información de columnas duplicadas si las hubo
+                    if any([df.columns.duplicated().any() for df in [resultado_df, liquidacion_df, masterdata_df] if df is not None]):
+                        st.info("ℹ️ Se detectaron y limpiaron columnas duplicadas automáticamente")
+                    
                     # Pestañas para mostrar datos
                     tab1, tab2, tab3 = st.tabs(["📊 Vista Previa", "📈 Estadísticas", "📁 Descargar"])
                     
@@ -332,12 +379,23 @@ def main():
                             ["Datos Combinados", "Solo Liquidación", "Solo MASTERDATA"]
                         )
                         
-                        if hoja_seleccionada == "Datos Combinados":
-                            st.dataframe(resultado_df.head(100), use_container_width=True)
-                        elif hoja_seleccionada == "Solo Liquidación":
-                            st.dataframe(liquidacion_df.head(100), use_container_width=True)
-                        else:
-                            st.dataframe(masterdata_df.head(100), use_container_width=True)
+                        try:
+                            if hoja_seleccionada == "Datos Combinados":
+                                # Mostrar información de columnas para diagnóstico
+                                st.write(f"**Total de columnas:** {len(resultado_df.columns)}")
+                                st.write(f"**Primeras 5 columnas:** {list(resultado_df.columns[:5])}")
+                                st.dataframe(resultado_df.head(100), use_container_width=True)
+                            elif hoja_seleccionada == "Solo Liquidación":
+                                st.write(f"**Total de columnas:** {len(liquidacion_df.columns)}")
+                                st.write(f"**Primeras 5 columnas:** {list(liquidacion_df.columns[:5])}")
+                                st.dataframe(liquidacion_df.head(100), use_container_width=True)
+                            else:
+                                st.write(f"**Total de columnas:** {len(masterdata_df.columns)}")
+                                st.write(f"**Primeras 5 columnas:** {list(masterdata_df.columns[:5])}")
+                                st.dataframe(masterdata_df.head(100), use_container_width=True)
+                        except Exception as e:
+                            st.error(f"Error al mostrar DataFrame: {str(e)}")
+                            st.error("Verifica que no haya caracteres especiales en los nombres de columnas")
                     
                     with tab2:
                         st.subheader("📈 Estadísticas del procesamiento")
@@ -369,15 +427,19 @@ def main():
                         # Generar archivo para descarga
                         excel_file = crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df)
                         
-                        st.download_button(
-                            label="📁 Descargar Excel procesado",
-                            data=excel_file.getvalue(),
-                            file_name=f"Liquidacion_procesada_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            type="primary"
-                        )
-                        
-                        st.info("💡 El archivo contiene las siguientes hojas:\n- **Datos_Combinados**: Merge completo\n- **Netos**: Formato ordenado\n- **MASTERDATA**: Datos maestros\n- **Info_Procesamiento**: Resumen")
+                        if excel_file:
+                            st.download_button(
+                                label="📁 Descargar Excel procesado",
+                                data=excel_file.getvalue(),
+                                file_name=f"Liquidacion_procesada_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                type="primary"
+                            )
+                            
+                            st.info("💡 El archivo contiene las siguientes hojas:\n- **Datos_Combinados**: Merge completo\n- **Netos**: Formato ordenado\n- **MASTERDATA**: Datos maestros\n- **Info_Procesamiento**: Resumen")
+                        else:
+                            st.error("❌ Error al generar el archivo de descarga")
+                            
         else:
             st.warning("⚠️ Por favor carga ambos archivos antes de procesar.")
     
@@ -388,6 +450,7 @@ def main():
     - El archivo de liquidación debe ser formato texto (.txt) de JMC
     - La aplicación detecta automáticamente las columnas de unión SAP
     - Optimizado para procesar recibos de pago de Jerónimo Martins Colombia
+    - **Limpia automáticamente columnas duplicadas**
     - Interfaz web especializada para nómina de Jerónimo Martins Colombia
     """)
     
@@ -395,7 +458,8 @@ def main():
     st.sidebar.markdown("""
     <div style='text-align: center; font-size: 10px; color: #888;'>
         Nómina 2025<br>
-        Desarrollado by @jeysshon
+        Desarrollado by @jeysshon<br>
+        ✅ Versión con limpieza de columnas duplicadas
     </div>
     """, unsafe_allow_html=True)
     
@@ -405,6 +469,7 @@ def main():
     <div style='text-align: center'>
         <p>🚀 Desarrollado para el procesamiento eficiente de datos de liquidación</p>
         <p>📧 ¿Necesitas ayuda? Contacta al equipo de desarrollo</p>
+        <p><small>🔧 Versión mejorada con corrección de columnas duplicadas</small></p>
     </div>
     """, unsafe_allow_html=True)
 
