@@ -113,4 +113,5 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 ---
 
-**Desarrollado con ❤️ para optimizar el procesamiento de datos de liquidación**
+**🏢 Diseñado específicamente para nómina Jerónimo Martins Colombia**  
+**Desarrollado con ❤️ por @jeysshon 2025**
