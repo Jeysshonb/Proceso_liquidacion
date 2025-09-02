@@ -182,48 +182,72 @@ def procesar_archivos(archivo_liquidacion, archivo_masterdata):
 
 def crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df):
     """
-    Crea un archivo Excel para descargar
+    Crea un archivo Excel para descargar - Basado en el código Python exitoso
     """
     output = io.BytesIO()
     
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        
         if resultado_df is not None:
             # Hoja con datos combinados
             resultado_df.to_excel(writer, sheet_name='Datos_Combinados', index=False)
             
-            # Hoja Netos
+            # Crear hoja "Netos" similar al archivo original - mismo formato que el código Python
             netos_df = resultado_df.copy()
-            columnas_netos = []
             
-            for col in ['NETO', 'SALARIO', 'SAP', 'CEDULA', 'NOMBRE', 'REGIONAL', 'CE_COSTE', 'F_ING', 'CARGO']:
+            # Reorganizar columnas para que se parezca al formato original
+            columnas_netos = []
+            if 'NETO' in netos_df.columns:
+                columnas_netos.append('NETO')
+            if 'SALARIO' in netos_df.columns:
+                columnas_netos.append('SALARIO')
+            
+            # Buscar columna SAP
+            sap_col = None
+            for col in ['SAP']:
+                if col in netos_df.columns:
+                    columnas_netos.append(col)
+                    sap_col = col
+                    break
+            
+            # Agregar otras columnas importantes
+            for col in ['CEDULA', 'NOMBRE', 'REGIONAL', 'CE_COSTE', 'F_ING', 'CARGO']:
                 if col in netos_df.columns:
                     columnas_netos.append(col)
             
+            # Agregar columnas restantes
             for col in netos_df.columns:
                 if col not in columnas_netos:
                     columnas_netos.append(col)
             
             netos_df = netos_df[columnas_netos]
             netos_df.to_excel(writer, sheet_name='Netos', index=False)
+            
         else:
+            # Si no hay merge, solo datos de liquidación
             liquidacion_df.to_excel(writer, sheet_name='Liquidacion', index=False)
         
+        # Hoja MASTERDATA
         if masterdata_df is not None:
             masterdata_df.to_excel(writer, sheet_name='MASTERDATA', index=False)
         
-        # Información del procesamiento
+        # Información del procesamiento - mismo formato que el código Python original
         info_data = {
             'Información': [
-                'Procesado el:',
+                'Archivo procesado el:',
                 'Empleados en Liquidación:',
                 'Registros en MASTERDATA:',
-                'Empleados procesados:'
+                'Empleados con match:',
+                'Columna de unión Liquidación:',
+                'Columna de unión MASTERDATA:'
             ],
             'Valor': [
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 len(liquidacion_df) if liquidacion_df is not None else 0,
                 len(masterdata_df) if masterdata_df is not None else 0,
-                len(resultado_df) if resultado_df is not None else 0
+                resultado_df[resultado_df.columns[resultado_df.columns.str.contains('Nº pers.', na=False)]].iloc[:, 0].notna().sum() if resultado_df is not None and any(resultado_df.columns.str.contains('Nº pers.', na=False)) else 0,
+                'SAP' if liquidacion_df is not None and 'SAP' in liquidacion_df.columns else 'No encontrada',
+                'Nº pers.' if masterdata_df is not None and 'Nº pers.' in masterdata_df.columns else 'No encontrada'
             ]
         }
         
@@ -262,9 +286,9 @@ def main():
     
     # Archivo MASTERDATA
     archivo_masterdata = st.sidebar.file_uploader(
-        "📊 Archivo MASTERDATA (.xlsx, .xlsb)",
-        type=['xlsx', 'xlsb', 'xls'],
-        help="Selecciona el archivo con los datos maestros"
+        "📊 Archivo MASTERDATA (.xlsx)",
+        type=['xlsx'],
+        help="Selecciona el archivo con los datos maestros (solo formato .xlsx)"
     )
     
     # Botón de procesamiento
