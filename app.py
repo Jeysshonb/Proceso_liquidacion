@@ -386,7 +386,6 @@ def main():
     st.sidebar.markdown("""
     ### 💡 Consejos:
     - El archivo de liquidación debe ser formato texto (.txt) de JMC
-    - El MASTERDATA acepta múltiples formatos (.xlsx, .xlsb, .xls)
     - La aplicación detecta automáticamente las columnas de unión SAP
     - Optimizado para procesar recibos de pago de Jerónimo Martins Colombia
     """)
