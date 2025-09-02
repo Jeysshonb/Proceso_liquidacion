@@ -27,15 +27,54 @@ def limpiar_columnas_duplicadas(df):
     
     return df
 
+# ------------------------------ #
+# Utilidades de parsing robustas #
+# ------------------------------ #
+
+def safe_slice(s: str, a: int, b: int) -> str:
+    """Devuelve s[a:b] sin romper si la línea es corta."""
+    if a >= len(s):
+        return ""
+    return s[a:b]
+
+# FIX: extraer el código como primer token válido (Yxxx, Zxxx, 4 dígitos, /5xx, etc.)
+CODIGO_REGEX = re.compile(r'^\s*(/5\d+|[YZ]\d{3}|\d{4}|\d{3,5})')
+
+def extraer_codigo_y_concepto(linea: str):
+    """
+    Extrae:
+      - CÓDIGO: primer token real al inicio (no por ancho fijo).
+      - CONCEPTO: texto entre el final del código y la columna 50 (antes de CANTIDAD).
+    No altera la línea original para mantener posiciones de CANTIDAD/VALOR.
+    """
+    # Solo para texto del concepto, normalizamos tabs a espacios para evitar "Apoy\to ..." en pantalla
+    texto_para_concepto = linea.replace('\t', ' ')
+
+    m = CODIGO_REGEX.match(texto_para_concepto)
+    if m:
+        codigo = m.group(1).strip()
+        idx_fin_codigo = m.end()
+    else:
+        # Fallback razonable: primer token no vacío
+        parts = texto_para_concepto.strip().split()
+        codigo = parts[0] if parts else ""
+        # Ubicar dónde termina ese token
+        idx_fin_codigo = texto_para_concepto.find(codigo) + len(codigo) if codigo else 0
+
+    # Concepto: desde el final del código hasta antes de la col 50 (ancla de cantidades)
+    concepto = texto_para_concepto[idx_fin_codigo:50].strip()
+    return codigo, concepto
+
 def procesar_liquidacion_power_query_style(contenido_archivo):
     """
-    Replica exactamente los pasos del Power Query para procesar liquidación
+    Replica exactamente los pasos del Power Query para procesar liquidación,
+    pero con parsing robusto del CÓDIGO y CONCEPTO.
     """
     # Paso 1: Separar por líneas como CSV con delimiter ";"
     lineas = contenido_archivo.split('\n')
     
     # Crear DataFrame inicial con columna "Linea"
-    df_inicial = pd.DataFrame({'Linea': [linea.strip() for linea in lineas if linea.strip()]})
+    df_inicial = pd.DataFrame({'Linea': [linea.strip('\r') for linea in lineas if linea.strip()]})
     
     # Paso 2: Agregar columna SAP_Ident
     def extraer_sap(linea):
@@ -50,39 +89,32 @@ def procesar_liquidacion_power_query_style(contenido_archivo):
     # Paso 3: Fill Down - Rellenar SAP_Ident hacia abajo
     df_inicial['SAP_Ident'] = df_inicial['SAP_Ident'].fillna(method='ffill')
     
-    # Paso 4: Filtrar filas - Replicar la lógica del Power Query
+    # Paso 4: Filtrar filas - Replicar la lógica del Power Query, pero identificando el código real
     def filtrar_conceptos(linea):
         linea = linea.strip()
         if 'PESOS CON 00/100' in linea:
             return False
         if len(linea) <= 30:
             return False
-        
-        codigo = linea[:4].strip()
-        return (codigo.startswith('Y') or 
-                codigo.startswith('Z') or 
-                codigo.startswith('9') or 
-                codigo.startswith('2') or 
-                codigo.startswith('/5'))
+        codigo, _ = extraer_codigo_y_concepto(linea)
+        # Aceptar si el código inicia con Y, Z, 9, 2 o /5
+        return bool(re.match(r'^(Y|Z|9|2|/5)', codigo))
     
     df_conceptos = df_inicial[df_inicial['Linea'].apply(filtrar_conceptos)].copy()
     
-    # Paso 5: Parsear las partes - Replicar exactamente las posiciones del Power Query
+    # Paso 5: Parsear las partes (ahora CÓDIGO/CONCEPTO no dependen de anchos fijos)
     def parsear_partes(row):
         linea = row['Linea']
+        codigo, concepto = extraer_codigo_y_concepto(linea)  # FIX
         return {
-            'CÓDIGO': linea[:11].strip(),
-            'CONCEPTO': linea[11:46].strip(),
-            'CANTIDAD': linea[50:70].strip(),
-            'VALOR': linea[69:89].strip(),
+            'CÓDIGO': codigo,
+            'CONCEPTO': concepto,
+            'CANTIDAD': safe_slice(linea, 50, 70).strip(),
+            'VALOR': safe_slice(linea, 69, 89).strip(),
             'SAP': row['SAP_Ident']
         }
     
-    partes_list = []
-    for _, row in df_conceptos.iterrows():
-        partes = parsear_partes(row)
-        partes_list.append(partes)
-    
+    partes_list = [parsear_partes(row) for _, row in df_conceptos.iterrows()]
     df_parseado = pd.DataFrame(partes_list)
     
     # Paso 6: Convertir tipos de datos
@@ -129,16 +161,12 @@ def procesar_netos_power_query_style(contenido_archivo):
     def parsear_netos(row):
         linea = row['Linea']
         return {
-            'NETO': linea[:32].strip(),  # Concepto (Total General:)
-            'Valor': linea[-20:].strip(),  # Últimos 20 caracteres para el valor
+            'NETO': safe_slice(linea, 0, 32).strip(),  # Concepto (Total General:)
+            'Valor': linea[-20:].strip(),              # Últimos 20 caracteres para el valor
             'SAP': row['SAP_Ident']
         }
     
-    netos_list = []
-    for _, row in df_netos.iterrows():
-        partes = parsear_netos(row)
-        netos_list.append(partes)
-    
+    netos_list = [parsear_netos(row) for _, row in df_netos.iterrows()]
     df_netos_parseado = pd.DataFrame(netos_list)
     
     # Convertir tipos
@@ -233,16 +261,12 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
                     'Área de personal': 'NIVEL'
                 }
                 
-                # Seleccionar solo columnas que existen
                 cols_disponibles = {k: v for k, v in columnas_netos.items() if k in netos_con_master.columns}
                 
                 if cols_disponibles:
                     netos_final = netos_con_master[list(cols_disponibles.keys())].rename(columns=cols_disponibles)
-                    
-                    # Reordenar columnas exactamente como en Power Query
                     orden_columnas = ['NETO', 'Valor', 'SAP', 'CÉDULA', 'NOMBRE', 'REGIONAL', 'CE_COSTE', 'SALARIO', 'F. ING', 'CARGO', 'NIVEL']
                     columnas_finales = [col for col in orden_columnas if col in netos_final.columns]
-                    
                     netos_final = netos_final[columnas_finales]
                     netos_final.to_excel(writer, sheet_name='Netos', index=False)
             
@@ -275,16 +299,12 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
                     'Área de personal': 'NIVEL'
                 }
                 
-                # Seleccionar solo columnas que existen
                 cols_disponibles = {k: v for k, v in columnas_convertida.items() if k in conceptos_con_master.columns}
                 
                 if cols_disponibles:
                     convertida_final = conceptos_con_master[list(cols_disponibles.keys())].rename(columns=cols_disponibles)
-                    
-                    # Reordenar columnas exactamente como en Power Query
                     orden_columnas = ['CÓDIGO', 'CONCEPTO', 'CANTIDAD', 'VALOR', 'SAP', 'CÉDULA', 'NOMBRE', 'SALARIO', 'F. INGRESO', 'CARGO', 'NIVEL']
                     columnas_finales = [col for col in orden_columnas if col in convertida_final.columns]
-                    
                     convertida_final = convertida_final[columnas_finales]
                     convertida_final.to_excel(writer, sheet_name='Preno_Convertida', index=False)
         
@@ -302,17 +322,21 @@ def main():
     st.markdown("---")
     
     st.markdown("""
-    ### 🎯 Replica exactamente la lógica de Power Query
+    ### 🎯 Replica la lógica de Power Query (con parsing robusto de CÓDIGO)
     
     **Proceso para Preno_Convertida:**
     1. Extrae SAP de líneas "Núm. Personal" 
-    2. Filtra conceptos (Y*, Z*, 9*, 2*, /5*)
-    3. Parsea: Código(0-11), Concepto(11-46), Cantidad(50-70), Valor(69-89)
+    2. Filtra conceptos (Y*, Z*, 9*, 2*, /5*) usando el *código real*
+    3. Parsea:
+       - **CÓDIGO**: primer token válido (no por ancho fijo)
+       - **CONCEPTO**: desde el fin del código hasta antes de la col 50
+       - **CANTIDAD**: col 50–70
+       - **VALOR**: col 69–89
     4. JOIN con MASTERDATA por SAP = "Nº pers."
     
     **Proceso para Netos:**
     1. Filtra solo líneas con "Total General"
-    2. Parsea: Concepto(0-32), Valor(últimos 20)  
+    2. Parsea: Concepto(0–32), Valor(últimos 20)  
     3. JOIN con MASTERDATA por SAP = "Nº pers."
     """)
     
@@ -387,11 +411,13 @@ def main():
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("""
-    ### 🔧 LÓGICA POWER QUERY REPLICADA:
+    ### 🔧 LÓGICA POWER QUERY REPLICADA (ajustada):
     - Encoding: latin-1 (CP1252)
     - SAP desde "Núm. Personal" + Fill Down
     - Filtros exactos de conceptos
-    - Parsing por posiciones fijas
+    - **CÓDIGO por primer token válido (no 0:11)**
+    - CONCEPTO desde fin de CÓDIGO hasta col 50
+    - CANTIDAD (50–70) y VALOR (69–89)
     - JOINs por SAP = "Nº pers."
     """)
 
