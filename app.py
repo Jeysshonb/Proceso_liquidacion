@@ -388,6 +388,7 @@ def main():
     - El archivo de liquidación debe ser formato texto (.txt) de JMC
     - La aplicación detecta automáticamente las columnas de unión SAP
     - Optimizado para procesar recibos de pago de Jerónimo Martins Colombia
+    - Interfaz web especializada para nómina de Jerónimo Martins Colombia
     """)
     
     st.sidebar.markdown("---")
