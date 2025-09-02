@@ -385,11 +385,18 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.markdown("""
     ### 💡 Consejos:
-    - El archivo de liquidación debe ser formato texto (.txt)
-    - El MASTERDATA puede ser Excel (.xlsx, .xlsb, .xls)
-    - La aplicación detecta automáticamente las columnas de unión
-    - El procesamiento puede tardar unos minutos según el tamaño
+    - El archivo de liquidación debe ser formato texto (.txt) de JMC
+    - El MASTERDATA puede ser Excel (.xlsx)
+    - La aplicación detecta automáticamente las columnas de unión SAP
+    - Optimizado para procesar recibos de pago de Jerónimo Martins Colombia
     """)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+    <div style='text-align: center; font-size: 10px; color: #888;'>
+        Desarrollado por @jeysshon 2025
+    </div>
+    """, unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")
