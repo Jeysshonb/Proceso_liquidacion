@@ -312,7 +312,9 @@ def main():
     ### 📋 Funcionalidades:
     - ✅ Extrae información de recibos de liquidación (formato texto)
     - ✅ Combina con datos de MASTERDATA (Excel/XLSB)
-    - ✅ Genera archivo Excel con múltiples hojas
+    - ✅ Genera archivo Excel con 2 hojas específicas:
+      - **Netos**: Total General, SAP, Cédula, Nombre, Regional, etc.
+      - **Convertida**: Desglose de conceptos por empleado
     - ✅ Interfaz web fácil de usar
     - ✅ **Detección y limpieza automática de columnas duplicadas**
     """)
