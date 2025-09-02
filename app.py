@@ -19,387 +19,274 @@ def limpiar_columnas_duplicadas(df):
     if df is None or df.empty:
         return df
     
-    # Verificar si hay columnas duplicadas
     if df.columns.duplicated().any():
         st.warning(f"⚠️ Columnas duplicadas encontradas: {df.columns[df.columns.duplicated()].tolist()}")
-        
-        # Eliminar columnas duplicadas (mantener la primera)
         df_limpio = df.loc[:, ~df.columns.duplicated()]
-        
         st.success(f"✅ DataFrame limpiado: {len(df.columns)} -> {len(df_limpio.columns)} columnas")
         return df_limpio
     
     return df
 
-def parsear_recibo_liquidacion(contenido_archivo):
+def procesar_liquidacion_power_query_style(contenido_archivo):
     """
-    Parsea un archivo de recibos de liquidación con formato específico
+    Replica exactamente los pasos del Power Query para procesar liquidación
     """
-    empleados = []
-    empleado_actual = {}
-    
+    # Paso 1: Separar por líneas como CSV con delimiter ";"
     lineas = contenido_archivo.split('\n')
     
-    for i, linea in enumerate(lineas):
+    # Crear DataFrame inicial con columna "Linea"
+    df_inicial = pd.DataFrame({'Linea': [linea.strip() for linea in lineas if linea.strip()]})
+    
+    # Paso 2: Agregar columna SAP_Ident
+    def extraer_sap(linea):
+        if 'Núm. Personal' in linea or 'Nm. Personal' in linea:
+            # Extraer números después de "Personal"
+            match = re.search(r'Personal\.+(\d+)', linea)
+            return match.group(1) if match else None
+        return None
+    
+    df_inicial['SAP_Ident'] = df_inicial['Linea'].apply(extraer_sap)
+    
+    # Paso 3: Fill Down - Rellenar SAP_Ident hacia abajo
+    df_inicial['SAP_Ident'] = df_inicial['SAP_Ident'].fillna(method='ffill')
+    
+    # Paso 4: Filtrar filas - Replicar la lógica del Power Query
+    def filtrar_conceptos(linea):
         linea = linea.strip()
+        if 'PESOS CON 00/100' in linea:
+            return False
+        if len(linea) <= 30:
+            return False
         
-        # Nueva página o nuevo empleado
-        if linea.startswith('Pagina:'):
-            if empleado_actual:  # Guardar empleado anterior si existe
-                empleados.append(empleado_actual.copy())
-                empleado_actual = {}
-            continue
-        
-        # Saltar líneas vacías y encabezados
-        if not linea or linea.startswith('RECIBO DE PAGO') or linea.startswith('Fecha:'):
-            continue
-        
-        # Extraer información del empleado
+        codigo = linea[:4].strip()
+        return (codigo.startswith('Y') or 
+                codigo.startswith('Z') or 
+                codigo.startswith('9') or 
+                codigo.startswith('2') or 
+                codigo.startswith('/5'))
+    
+    df_conceptos = df_inicial[df_inicial['Linea'].apply(filtrar_conceptos)].copy()
+    
+    # Paso 5: Parsear las partes - Replicar exactamente las posiciones del Power Query
+    def parsear_partes(row):
+        linea = row['Linea']
+        return {
+            'CÓDIGO': linea[:11].strip(),
+            'CONCEPTO': linea[11:46].strip(),
+            'CANTIDAD': linea[50:70].strip(),
+            'VALOR': linea[69:89].strip(),
+            'SAP': row['SAP_Ident']
+        }
+    
+    partes_list = []
+    for _, row in df_conceptos.iterrows():
+        partes = parsear_partes(row)
+        partes_list.append(partes)
+    
+    df_parseado = pd.DataFrame(partes_list)
+    
+    # Paso 6: Convertir tipos de datos
+    def safe_convert_number(val):
         try:
-            # Número de personal y cédula
-            if 'Nm. Personal' in linea and 'Cedula Ident' in linea:
-                personal_match = re.search(r'Nm\. Personal\.+(\d+)', linea)
-                cedula_match = re.search(r'Cedula Ident\.+ (\d+)', linea)
-                
-                if personal_match:
-                    empleado_actual['SAP'] = int(personal_match.group(1))
-                if cedula_match:
-                    empleado_actual['CEDULA'] = int(cedula_match.group(1))
-            
-            # Nombre del empleado y sueldo básico
-            elif 'Empleado' in linea and 'Sueldo Bsico' in linea:
-                nombre_match = re.search(r'Empleado \.+ (.+?)\s+Sueldo Bsico\.+\s*([\d\.,]+)', linea)
-                if nombre_match:
-                    empleado_actual['NOMBRE'] = nombre_match.group(1).strip()
-                    sueldo_str = nombre_match.group(2).replace('.', '').replace(',', '.')
-                    try:
-                        empleado_actual['SALARIO'] = float(sueldo_str)
-                    except:
-                        empleado_actual['SALARIO'] = 0
-            
-            # Compañía y fecha de nacimiento
-            elif 'Compaa' in linea and 'Fecha Nacto' in linea:
-                compania_match = re.search(r'Compaa\.+ (.+?)\s+Fecha Nacto\.+(.+)', linea)
-                if compania_match:
-                    empleado_actual['COMPANIA'] = compania_match.group(1).strip()
-                    empleado_actual['FECHA_NACIMIENTO'] = compania_match.group(2).strip()
-            
-            # División y fecha de ingreso
-            elif 'Divisin' in linea and 'Fecha Ingreso' in linea:
-                division_match = re.search(r'Divisin\.+ (.+?)\s+Fecha Ingreso\.+(.+)', linea)
-                if division_match:
-                    empleado_actual['REGIONAL'] = division_match.group(1).strip()
-                    empleado_actual['F_ING'] = division_match.group(2).strip()
-            
-            # Subdivisión y relación laboral
-            elif 'Subdivisin' in linea and 'Relacin Lab' in linea:
-                subdivision_match = re.search(r'Subdivisin\.+ (.+?)\s+Relacin Lab\.+(.+)', linea)
-                if subdivision_match:
-                    empleado_actual['SUBDIVISION'] = subdivision_match.group(1).strip()
-                    empleado_actual['CARGO'] = subdivision_match.group(2).strip()
-            
-            # Centro de coste
-            elif 'Ce.coste' in linea:
-                ce_coste_match = re.search(r'Ce\.coste\.+(\d+)', linea)
-                if ce_coste_match:
-                    empleado_actual['CE_COSTE'] = int(ce_coste_match.group(1))
-            
-            # Buscar conceptos y valores (líneas que terminan con números)
-            elif re.search(r'^[A-Za-záéíóúÁÉÍÓÚñÑ\s\.]+\s+([\d\.,\-]+)$', linea):
-                concepto_match = re.match(r'^(.+?)\s+([\d\.,\-]+)$', linea)
-                if concepto_match:
-                    concepto = concepto_match.group(1).strip()
-                    valor_str = concepto_match.group(2).replace('.', '').replace(',', '.')
-                    try:
-                        valor = float(valor_str)
-                        # Limpiar el nombre del concepto
-                        concepto_limpio = re.sub(r'[^\w\s]', '', concepto).strip().upper().replace(' ', '_')
-                        if concepto_limpio:
-                            empleado_actual[f'CONCEPTO_{concepto_limpio}'] = valor
-                    except:
-                        pass
-        
-        except Exception as e:
-            # Continuar con la siguiente línea si hay error en el parsing
-            continue
+            if pd.isna(val) or val == '':
+                return 0
+            # Limpiar formato de números (quitar puntos y comas)
+            val_clean = str(val).replace('.', '').replace(',', '.')
+            return float(val_clean)
+        except:
+            return 0
     
-    # Agregar último empleado
-    if empleado_actual:
-        empleados.append(empleado_actual)
+    df_parseado['CANTIDAD'] = df_parseado['CANTIDAD'].apply(safe_convert_number)
+    df_parseado['VALOR'] = df_parseado['VALOR'].apply(safe_convert_number)
+    df_parseado['SAP'] = pd.to_numeric(df_parseado['SAP'], errors='coerce')
     
-    if len(empleados) == 0:
-        return pd.DataFrame()
+    return df_parseado
+
+def procesar_netos_power_query_style(contenido_archivo):
+    """
+    Replica exactamente los pasos del Power Query para procesar NETOS
+    """
+    # Paso 1: Separar por líneas
+    lineas = contenido_archivo.split('\n')
+    df_inicial = pd.DataFrame({'Linea': [linea.strip() for linea in lineas if linea.strip()]})
     
-    # Convertir a DataFrame
-    df = pd.DataFrame(empleados)
+    # Paso 2: Agregar columna SAP_Ident
+    def extraer_sap(linea):
+        if 'Núm. Personal' in linea or 'Nm. Personal' in linea:
+            match = re.search(r'Personal\.+(\d+)', linea)
+            return match.group(1) if match else None
+        return None
     
-    # Calcular valor neto si no existe
-    if 'NETO' not in df.columns:
-        # Buscar columnas de conceptos para calcular el neto
-        conceptos_cols = [col for col in df.columns if col.startswith('CONCEPTO_')]
-        if conceptos_cols:
-            df['NETO'] = df[conceptos_cols].sum(axis=1, skipna=True)
-        elif 'SALARIO' in df.columns:
-            df['NETO'] = df['SALARIO']
+    df_inicial['SAP_Ident'] = df_inicial['Linea'].apply(extraer_sap)
     
-    return df
+    # Paso 3: Fill Down
+    df_inicial['SAP_Ident'] = df_inicial['SAP_Ident'].fillna(method='ffill')
+    
+    # Paso 4: Filtrar solo líneas que contienen "Total General"
+    df_netos = df_inicial[df_inicial['Linea'].str.contains('Total General', na=False)].copy()
+    
+    # Paso 5: Parsear las partes para NETOS
+    def parsear_netos(row):
+        linea = row['Linea']
+        return {
+            'NETO': linea[:32].strip(),  # Concepto (Total General:)
+            'Valor': linea[-20:].strip(),  # Últimos 20 caracteres para el valor
+            'SAP': row['SAP_Ident']
+        }
+    
+    netos_list = []
+    for _, row in df_netos.iterrows():
+        partes = parsear_netos(row)
+        netos_list.append(partes)
+    
+    df_netos_parseado = pd.DataFrame(netos_list)
+    
+    # Convertir tipos
+    def safe_convert_number(val):
+        try:
+            if pd.isna(val) or val == '':
+                return 0
+            val_clean = str(val).replace('.', '').replace(',', '.')
+            return float(val_clean)
+        except:
+            return 0
+    
+    df_netos_parseado['Valor'] = df_netos_parseado['Valor'].apply(safe_convert_number)
+    df_netos_parseado['SAP'] = pd.to_numeric(df_netos_parseado['SAP'], errors='coerce')
+    
+    return df_netos_parseado
 
 def procesar_archivos(archivo_liquidacion, archivo_masterdata):
     """
-    Procesa los archivos de Liquidación y MASTERDATA
+    Procesa los archivos replicando exactamente la lógica de Power Query
     """
     try:
-        # 1. Parsear archivo de Liquidación
-        contenido_liquidacion = archivo_liquidacion.getvalue().decode('utf-8', errors='ignore')
-        liquidacion_df = parsear_recibo_liquidacion(contenido_liquidacion)
+        # 1. Leer archivo de Liquidación
+        contenido_liquidacion = archivo_liquidacion.getvalue().decode('latin-1', errors='ignore')
         
-        if liquidacion_df.empty:
+        # 2. Procesar conceptos (Preno_Convertida)
+        df_conceptos = procesar_liquidacion_power_query_style(contenido_liquidacion)
+        
+        # 3. Procesar netos
+        df_netos = procesar_netos_power_query_style(contenido_liquidacion)
+        
+        if df_conceptos.empty and df_netos.empty:
             st.error("No se pudieron extraer datos del archivo de liquidación")
             return None, None, None
         
-        # 2. Leer archivo MASTERDATA
+        # 4. Leer archivo MASTERDATA
         try:
             masterdata_df = pd.read_excel(archivo_masterdata, engine='openpyxl')
         except:
             try:
-                # Si falla openpyxl, intentar con otros motores
                 masterdata_df = pd.read_excel(archivo_masterdata)
             except Exception as e:
                 st.error(f"Error al leer MASTERDATA: {str(e)}")
                 return None, None, None
         
-        # 3. Limpiar nombres de columnas
-        liquidacion_df.columns = liquidacion_df.columns.str.strip()
+        # 5. Limpiar nombres de columnas del MASTERDATA
         masterdata_df.columns = masterdata_df.columns.str.strip()
         
-        # 4. Buscar columnas de unión
-        sap_col_liquidacion = 'SAP' if 'SAP' in liquidacion_df.columns else None
-        sap_col_masterdata = 'Nº pers.' if 'Nº pers.' in masterdata_df.columns else None
-        
-        # 5. Realizar merge si es posible
-        if sap_col_liquidacion and sap_col_masterdata:
-            liquidacion_df[sap_col_liquidacion] = pd.to_numeric(liquidacion_df[sap_col_liquidacion], errors='coerce')
-            masterdata_df[sap_col_masterdata] = pd.to_numeric(masterdata_df[sap_col_masterdata], errors='coerce')
-            
-            resultado_df = pd.merge(
-                liquidacion_df, 
-                masterdata_df, 
-                left_on=sap_col_liquidacion, 
-                right_on=sap_col_masterdata, 
-                how='left',
-                suffixes=('_liquidacion', '_masterdata')
-            )
-            
-            # ✅ SOLUCIÓN: Limpiar columnas duplicadas después del merge
-            resultado_df = limpiar_columnas_duplicadas(resultado_df)
-            
-        else:
-            resultado_df = liquidacion_df
-            # También limpiar liquidacion_df por si acaso
-            resultado_df = limpiar_columnas_duplicadas(resultado_df)
-        
-        # También limpiar los otros DataFrames
-        liquidacion_df = limpiar_columnas_duplicadas(liquidacion_df)
-        masterdata_df = limpiar_columnas_duplicadas(masterdata_df)
-        
-        return resultado_df, liquidacion_df, masterdata_df
+        return df_conceptos, df_netos, masterdata_df
         
     except Exception as e:
         st.error(f"Error durante el procesamiento: {str(e)}")
-        st.error(f"Detalles del error: {type(e).__name__}")
         import traceback
         st.error(f"Traceback: {traceback.format_exc()}")
         return None, None, None
 
-def mapear_codigo_concepto(concepto_name):
+def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
     """
-    Mapea nombres de conceptos a códigos específicos basado en el archivo REAL subido
-    """
-    # Mapeo exacto extraído del archivo real
-    mapeo_real = {
-        'APOYO_DE_SOSTENIMIENTO': ('Y050', 'Apoyo de Sostenimiento'),
-        'APOYO_SOSTENIMIENTO_PRA': ('Y051', 'Apoyo Sostenimiento Pra'),
-        'BASE_SALUD_AUTOLIQ_JM': ('9262', 'Base Salud Autoliq. JM'),
-        'BASE_DESCUENTO_EMPLEADO': ('9263', 'Base Descuento Empleado'),
-        'SUELDO_BASICO': ('Y010', 'Sueldo Básico'),
-        'SALARIO_PARTI_TIME_DIAS': ('Y011', 'Salario Parti-time Días'),
-        'SALARIO_PART_TIME_HORAS': ('Y090', 'Salario Part-time Horas'),
-        'SUSPENSION_CONTRATO_SEN': ('Y1P4', 'Suspensión contrato SEN'),
-        'AUXILIO_TRANS_LEGAL': ('Y200', 'Auxilio  de Trans Legal'),
-        'RECARGO_NOCTURNO_35': ('Y220', 'Recargo Nocturno (35)'),
-        'RECARGO_NOCT_DOM_110': ('Y221', 'recargo noct dom (110)'),
-        'PAGO_DESCANSO_REMUNERAD': ('Y250', 'Pago descanso remunerad'),
-        'HORA_EXTRA_DIURNA_125': ('Y300', 'Hora Extra Diurna (125)'),
-        'HORA_EXTRA_NOCTURNA_17': ('Y305', 'Hora Extra Nocturna (17'),
-        'HORA_EX_DIURNA_FEST_20': ('Y310', 'Hora Ex Diurna Fest (20'),
-        'HORA_EX_NOCT_FEST_250': ('Y315', 'Hora Ex Noct.Fest (250)'),
-        'COMPENSATORIO': ('Y350', 'Compensatorio'),
-        'INCAPA_FUERA_TURNO': ('Y510', 'Incapa. fuera de turno'),
-        'VALES_ALIMENTACION_BP': ('Y598', 'Vales alimentación BP'),
-        'BONO_POR_LOCALIDAD': ('Y616', 'Bono por Localidad'),
-        'RECARGO_DOMINGO_FEST': ('YM01', 'Recargo domingo y/o fes'),
-        'AUX_DIAS_INIC_INCAP': ('Y1A1', 'Aux.Días inic.incap gra'),
-        'DIA_DE_LA_FAMILIA': ('Y1D1', 'Día de la Familia'),
-        'AUSENCIA_NO_JUSTIFICADA': ('Y1S2', 'Ausencia no justificada'),
-        'AUS_REG_SIN_SOPORTE': ('Y1S4', 'Aus Reg sin Soporte'),
-        'AUS_SIN_SOPORTE_RECH': ('Y1S5', 'Aus.Sin Soporte Rech Do'),
-        'DESCUENTO_SALUD': ('Z000', 'Descuento Salud'),
-        'DESCUENTO_PENSION': ('Z010', 'Descuento Pensión'),
-        'DESC_AUTORIZADO_CAJA': ('Z498', 'Desc autorizado Caja'),
-        'DESCUENTO_COOP_COMUNIDA': ('Z542', 'Descuento coop comunida'),
-        'COMPENSACION_MAYOR_VALO': ('Z550', 'Compensación mayor valo'),
-        'FONDO_EMPL_JMC_ATULADO': ('Z573', 'Fondo Empl. JMC ATuLado'),
-        'DESCUENTO_BIG_PASS': ('Z590', 'Descuento Big Pass'),
-        'DESCUENTO_PAY_FLOW': ('Z610', 'Descuento Pay Flow'),
-        'DESCUENTO_ALMUERZO': ('ZCA2', 'Descuento almuerzo'),
-        'PREST_LIBRE_INVERS_ATUL': ('ZLB1', 'Prest Libre Invers ATuL'),
-        'DOTACION_OPERACIONES': ('9DT3', 'Dotación operaciones')
-    }
-    
-    concepto_key = concepto_name.upper().replace(' ', '_').replace('.', '_').replace('-', '_')
-    
-    # Buscar coincidencias parciales
-    for key, (codigo, concepto) in mapeo_real.items():
-        if key in concepto_key or any(word in concepto_key for word in key.split('_') if len(word) > 3):
-            return codigo, concepto
-    
-    # Si no encuentra coincidencia exacta, devolver código genérico
-    return 'Y999', concepto_name.title()
-
-def crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df):
-    """
-    Crea un archivo Excel con SOLO 2 hojas: Netos y Preno_Convertida
-    Replicando EXACTAMENTE la estructura del archivo real subido
+    Crea el Excel final replicando exactamente los JOINs de Power Query
     """
     output = io.BytesIO()
     
     try:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             
-            if resultado_df is not None:
-                # Limpiar columnas duplicadas antes de escribir
-                resultado_df_limpio = limpiar_columnas_duplicadas(resultado_df)
+            # ==========================================
+            # HOJA 1: "Netos" - Replicar JOIN del Power Query
+            # ==========================================
+            
+            if df_netos is not None and masterdata_df is not None:
+                # JOIN: NETOS + MASTERDATA por SAP / "Nº pers."
+                netos_con_master = pd.merge(
+                    df_netos,
+                    masterdata_df,
+                    left_on='SAP',
+                    right_on='Nº pers.',
+                    how='left'
+                )
                 
-                # ==========================================
-                # HOJA 1: "Netos" - EXACTAMENTE como en el archivo real
-                # ==========================================
+                # Seleccionar y renombrar columnas como en Power Query
+                columnas_netos = {
+                    'NETO': 'NETO',
+                    'Valor': 'Valor', 
+                    'SAP': 'SAP',
+                    'Número ID': 'CÉDULA',
+                    'Número de personal': 'NOMBRE',
+                    'División de personal': 'REGIONAL',
+                    'Ce.coste': 'CE_COSTE',
+                    '     Importe': 'SALARIO',
+                    'Fecha': 'F. ING',
+                    'Función': 'CARGO',
+                    'Área de personal': 'NIVEL'
+                }
                 
-                netos_data = []
-                for idx, row in resultado_df_limpio.iterrows():
-                    # Calcular el valor neto sumando conceptos positivos y restando negativos
-                    conceptos_cols = [col for col in resultado_df_limpio.columns if col.startswith('CONCEPTO_')]
-                    valor_neto = 0
+                # Seleccionar solo columnas que existen
+                cols_disponibles = {k: v for k, v in columnas_netos.items() if k in netos_con_master.columns}
+                
+                if cols_disponibles:
+                    netos_final = netos_con_master[list(cols_disponibles.keys())].rename(columns=cols_disponibles)
                     
-                    if conceptos_cols:
-                        for concepto_col in conceptos_cols:
-                            if pd.notna(row[concepto_col]):
-                                valor_neto += float(row[concepto_col])
+                    # Reordenar columnas exactamente como en Power Query
+                    orden_columnas = ['NETO', 'Valor', 'SAP', 'CÉDULA', 'NOMBRE', 'REGIONAL', 'CE_COSTE', 'SALARIO', 'F. ING', 'CARGO', 'NIVEL']
+                    columnas_finales = [col for col in orden_columnas if col in netos_final.columns]
                     
-                    # Si no hay conceptos, usar el salario como base
-                    if valor_neto == 0:
-                        valor_neto = row.get('SALARIO', 0)
+                    netos_final = netos_final[columnas_finales]
+                    netos_final.to_excel(writer, sheet_name='Netos', index=False)
+            
+            # ==========================================
+            # HOJA 2: "Preno_Convertida" - Replicar JOIN del Power Query  
+            # ==========================================
+            
+            if df_conceptos is not None and masterdata_df is not None:
+                # JOIN: CONCEPTOS + MASTERDATA por SAP / "Nº pers."
+                conceptos_con_master = pd.merge(
+                    df_conceptos,
+                    masterdata_df,
+                    left_on='SAP',
+                    right_on='Nº pers.',
+                    how='left'
+                )
+                
+                # Seleccionar y renombrar columnas como en Power Query
+                columnas_convertida = {
+                    'CÓDIGO': 'CÓDIGO',
+                    'CONCEPTO': 'CONCEPTO',
+                    'CANTIDAD': 'CANTIDAD',
+                    'VALOR': 'VALOR',
+                    'SAP': 'SAP',
+                    'Número ID': 'CÉDULA',
+                    'Número de personal': 'NOMBRE',
+                    '     Importe': 'SALARIO',
+                    'Fecha': 'F. INGRESO',
+                    'Función': 'CARGO',
+                    'Área de personal': 'NIVEL'
+                }
+                
+                # Seleccionar solo columnas que existen
+                cols_disponibles = {k: v for k, v in columnas_convertida.items() if k in conceptos_con_master.columns}
+                
+                if cols_disponibles:
+                    convertida_final = conceptos_con_master[list(cols_disponibles.keys())].rename(columns=cols_disponibles)
                     
-                    neto_row = {
-                        'NETO': 'Total General:',  # Texto fijo exacto del archivo real
-                        'Valor': int(valor_neto) if valor_neto else 0,  # Valor calculado como entero
-                        'SAP': int(row.get('SAP', 0)) if pd.notna(row.get('SAP')) else 0,
-                        'CÉDULA': int(row.get('CEDULA', 0)) if pd.notna(row.get('CEDULA')) else 0,
-                        'NOMBRE': str(row.get('NOMBRE', '')),
-                        'REGIONAL': str(row.get('REGIONAL', '')),
-                        'CE_COSTE': int(row.get('CE_COSTE', 0)) if pd.notna(row.get('CE_COSTE')) else 0,
-                        'SALARIO': int(row.get('SALARIO', 0)) if pd.notna(row.get('SALARIO')) else 0,
-                        'F. ING': row.get('F_ING', ''),  # Mantener formato original
-                        'CARGO': str(row.get('CARGO', '')),
-                        'NIVEL': str(row.get('NIVEL', 'Non Manager X-XII'))
-                    }
-                    netos_data.append(neto_row)
-                
-                if netos_data:
-                    netos_df = pd.DataFrame(netos_data)
-                    netos_df.to_excel(writer, sheet_name='Netos', index=False)
-                
-                # ==========================================
-                # HOJA 2: "Preno_Convertida" - EXACTAMENTE como en el archivo real
-                # ==========================================
-                
-                convertida_data = []
-                
-                # Buscar todas las columnas de conceptos
-                conceptos_cols = [col for col in resultado_df_limpio.columns if col.startswith('CONCEPTO_')]
-                
-                for idx, row in resultado_df_limpio.iterrows():
-                    # Si hay conceptos específicos en el archivo de liquidación
-                    if conceptos_cols:
-                        for concepto_col in conceptos_cols:
-                            if pd.notna(row[concepto_col]) and row[concepto_col] != 0:
-                                # Extraer nombre del concepto sin el prefijo CONCEPTO_
-                                concepto_name = concepto_col.replace('CONCEPTO_', '').replace('_', ' ')
-                                
-                                # Mapear a código y concepto usando el mapeo real del archivo
-                                codigo, concepto_limpio = mapear_codigo_concepto(concepto_name)
-                                
-                                convertida_row = {
-                                    'CÓDIGO': codigo,
-                                    'CONCEPTO': concepto_limpio,
-                                    'CANTIDAD': 30,  # Cantidad fija como en el archivo real
-                                    'VALOR': int(row[concepto_col]) if pd.notna(row[concepto_col]) else None,
-                                    'SAP': int(row.get('SAP', 0)) if pd.notna(row.get('SAP')) else 0,
-                                    'CÉDULA': int(row.get('CEDULA', 0)) if pd.notna(row.get('CEDULA')) else 0,
-                                    'NOMBRE': str(row.get('NOMBRE', '')),
-                                    'SALARIO': int(row.get('SALARIO', 0)) if pd.notna(row.get('SALARIO')) else 0,
-                                    'F. INGRESO': row.get('F_ING', ''),  # Mantener formato original
-                                    'CARGO': str(row.get('CARGO', '')),
-                                    'NIVEL': str(row.get('NIVEL', 'Non Manager X-XII'))
-                                }
-                                convertida_data.append(convertida_row)
+                    # Reordenar columnas exactamente como en Power Query
+                    orden_columnas = ['CÓDIGO', 'CONCEPTO', 'CANTIDAD', 'VALOR', 'SAP', 'CÉDULA', 'NOMBRE', 'SALARIO', 'F. INGRESO', 'CARGO', 'NIVEL']
+                    columnas_finales = [col for col in orden_columnas if col in convertida_final.columns]
                     
-                    else:
-                        # Si no hay conceptos específicos, generar conceptos base típicos de nómina
-                        # Basándose en los patrones del archivo real subido
-                        
-                        salario_base = row.get('SALARIO', 0)
-                        
-                        # Conceptos típicos basados en el archivo real
-                        conceptos_base = [
-                            ('Y010', 'Sueldo Básico', salario_base),
-                            ('Y200', 'Auxilio  de Trans Legal', min(salario_base * 0.1, 140606)),  # Tope auxilio transporte 2024
-                            ('9262', 'Base Salud Autoliq. JM', salario_base),  # Base para cálculo salud
-                            ('9263', 'Base Descuento Empleado', salario_base),  # Base para descuentos
-                            ('Z000', 'Descuento Salud', salario_base * -0.04),  # 4% salud empleado
-                            ('Z010', 'Descuento Pensión', salario_base * -0.04)  # 4% pensión empleado
-                        ]
-                        
-                        # Agregar horas extras si el salario es significativamente mayor al básico
-                        if salario_base > 2000000:  # Si gana más del mínimo
-                            conceptos_base.extend([
-                                ('Y300', 'Hora Extra Diurna (125)', salario_base * 0.05),
-                                ('Y220', 'Recargo Nocturno (35)', salario_base * 0.02)
-                            ])
-                        
-                        for codigo, concepto, valor in conceptos_base:
-                            if valor != 0:  # Solo agregar si el valor no es cero
-                                convertida_row = {
-                                    'CÓDIGO': codigo,
-                                    'CONCEPTO': concepto,
-                                    'CANTIDAD': 30,
-                                    'VALOR': int(valor) if valor else None,
-                                    'SAP': int(row.get('SAP', 0)) if pd.notna(row.get('SAP')) else 0,
-                                    'CÉDULA': int(row.get('CEDULA', 0)) if pd.notna(row.get('CEDULA')) else 0,
-                                    'NOMBRE': str(row.get('NOMBRE', '')),
-                                    'SALARIO': int(salario_base) if salario_base else 0,
-                                    'F. INGRESO': row.get('F_ING', ''),
-                                    'CARGO': str(row.get('CARGO', '')),
-                                    'NIVEL': str(row.get('NIVEL', 'Non Manager X-XII'))
-                                }
-                                convertida_data.append(convertida_row)
-                
-                if convertida_data:
-                    convertida_df = pd.DataFrame(convertida_data)
-                    convertida_df.to_excel(writer, sheet_name='Preno_Convertida', index=False)
-                
-            else:
-                st.error("No hay datos para procesar")
-                return None
+                    convertida_final = convertida_final[columnas_finales]
+                    convertida_final.to_excel(writer, sheet_name='Preno_Convertida', index=False)
         
         output.seek(0)
         return output
@@ -411,154 +298,102 @@ def crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df):
         return None
 
 def main():
-    # Título principal
     st.title("📊 Procesador de Liquidación y MASTERDATA")
     st.markdown("---")
     
-    # Descripción
     st.markdown("""
-    ### 🎯 ¿Qué hace esta aplicación?
-    Esta herramienta procesa archivos de liquidación en formato de recibos de pago y los combina con datos maestros (MASTERDATA) para generar reportes estructurados en Excel.
+    ### 🎯 Replica exactamente la lógica de Power Query
     
-    ### 📋 Genera exactamente 2 hojas:
-    - ✅ **Netos**: "Total General:", Valor, SAP, CÉDULA, NOMBRE, REGIONAL, CE_COSTE, SALARIO, F. ING, CARGO, NIVEL
-    - ✅ **Preno_Convertida**: CÓDIGO, CONCEPTO, CANTIDAD, VALOR, SAP, CÉDULA, NOMBRE, SALARIO, F. INGRESO, CARGO, NIVEL
+    **Proceso para Preno_Convertida:**
+    1. Extrae SAP de líneas "Núm. Personal" 
+    2. Filtra conceptos (Y*, Z*, 9*, 2*, /5*)
+    3. Parsea: Código(0-11), Concepto(11-46), Cantidad(50-70), Valor(69-89)
+    4. JOIN con MASTERDATA por SAP = "Nº pers."
     
-    ### 🔧 Mapea conceptos a códigos:
-    - Y050: Apoyo de Sostenimiento
-    - 9262: Base Salud Autoliq. JM  
-    - 9263: Base Descuento Empleado
-    - Y010: Sueldo Básico
-    - Y200: Auxilio de Trans Legal
-    - Z000: Descuento Salud
-    - Y1P4: Suspensión contrato SEN
+    **Proceso para Netos:**
+    1. Filtra solo líneas con "Total General"
+    2. Parsea: Concepto(0-32), Valor(últimos 20)  
+    3. JOIN con MASTERDATA por SAP = "Nº pers."
     """)
     
-    # Sidebar para carga de archivos
     st.sidebar.header("📁 Cargar Archivos")
     
-    # Archivo de Liquidación
     archivo_liquidacion = st.sidebar.file_uploader(
         "📄 Archivo de Liquidación (.txt)",
         type=['txt'],
-        help="Selecciona el archivo de recibos de liquidación en formato texto"
+        help="Archivo de liquidación con encoding latin-1"
     )
     
-    # Archivo MASTERDATA
     archivo_masterdata = st.sidebar.file_uploader(
         "📊 Archivo MASTERDATA (.xlsx)",
         type=['xlsx'],
-        help="Selecciona el archivo con los datos maestros (solo formato .xlsx)"
+        help="Archivo MASTERDATA con columna 'Nº pers.'"
     )
     
-    # Botón de procesamiento
     if st.sidebar.button("🚀 Procesar Archivos", type="primary"):
         if archivo_liquidacion is not None and archivo_masterdata is not None:
-            with st.spinner('⏳ Procesando archivos...'):
-                resultado_df, liquidacion_df, masterdata_df = procesar_archivos(
+            with st.spinner('⏳ Procesando con lógica de Power Query...'):
+                df_conceptos, df_netos, masterdata_df = procesar_archivos(
                     archivo_liquidacion, archivo_masterdata
                 )
                 
-                if resultado_df is not None:
-                    st.success("✅ ¡Procesamiento completado exitosamente!")
+                if df_conceptos is not None or df_netos is not None:
+                    st.success("✅ ¡Procesamiento completado!")
                     
-                    # Mostrar estadísticas
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("👥 Empleados", len(liquidacion_df))
+                        st.metric("📊 Conceptos extraídos", len(df_conceptos) if df_conceptos is not None else 0)
                     
                     with col2:
-                        st.metric("📊 Registros MASTERDATA", len(masterdata_df))
+                        st.metric("💰 Netos extraídos", len(df_netos) if df_netos is not None else 0)
                     
                     with col3:
-                        matches = 0
-                        if 'SAP' in liquidacion_df.columns and 'Nº pers.' in resultado_df.columns:
-                            matches = resultado_df['Nº pers.'].notna().sum()
-                        st.metric("🔗 Matches encontrados", matches)
+                        st.metric("👥 Registros MASTERDATA", len(masterdata_df))
                     
-                    # Pestañas para mostrar datos
                     tab1, tab2 = st.tabs(["📊 Vista Previa", "📁 Descargar"])
                     
                     with tab1:
-                        st.subheader("🔍 Vista previa de los datos procesados")
+                        st.subheader("🔍 Vista previa")
                         
-                        # Selector de hoja
-                        hoja_seleccionada = st.selectbox(
-                            "Selecciona qué datos ver:",
-                            ["Datos Combinados", "Solo Liquidación", "Solo MASTERDATA"]
-                        )
+                        if df_conceptos is not None:
+                            st.markdown("**Conceptos procesados:**")
+                            st.dataframe(df_conceptos.head(20), use_container_width=True)
                         
-                        try:
-                            if hoja_seleccionada == "Datos Combinados":
-                                st.write(f"**Total de columnas:** {len(resultado_df.columns)}")
-                                st.write(f"**Primeras 5 columnas:** {list(resultado_df.columns[:5])}")
-                                st.dataframe(resultado_df.head(100), use_container_width=True)
-                            elif hoja_seleccionada == "Solo Liquidación":
-                                st.write(f"**Total de columnas:** {len(liquidacion_df.columns)}")
-                                st.write(f"**Primeras 5 columnas:** {list(liquidacion_df.columns[:5])}")
-                                st.dataframe(liquidacion_df.head(100), use_container_width=True)
-                            else:
-                                st.write(f"**Total de columnas:** {len(masterdata_df.columns)}")
-                                st.write(f"**Primeras 5 columnas:** {list(masterdata_df.columns[:5])}")
-                                st.dataframe(masterdata_df.head(100), use_container_width=True)
-                        except Exception as e:
-                            st.error(f"Error al mostrar DataFrame: {str(e)}")
-                            st.error("Verifica que no haya caracteres especiales en los nombres de columnas")
+                        if df_netos is not None:
+                            st.markdown("**Netos procesados:**") 
+                            st.dataframe(df_netos.head(10), use_container_width=True)
                     
                     with tab2:
                         st.subheader("📥 Descargar archivo procesado")
-                        st.markdown("**El archivo Excel contendrá EXACTAMENTE 2 hojas:**")
-                        st.markdown("- **Netos**: 'Total General:', Valor, SAP, CÉDULA, NOMBRE, REGIONAL, CE_COSTE, SALARIO, F. ING, CARGO, NIVEL")
-                        st.markdown("- **Preno_Convertida**: CÓDIGO, CONCEPTO, CANTIDAD, VALOR, SAP, CÉDULA, NOMBRE, SALARIO, F. INGRESO, CARGO, NIVEL")
                         
-                        st.info("🎯 **MAPEO DE CÓDIGOS**: Y050=Apoyo Sostenimiento, 9262=Base Salud, 9263=Base Descuento, Y010=Sueldo Básico")
-                        
-                        # Generar archivo para descarga
-                        excel_file = crear_excel_descarga(resultado_df, liquidacion_df, masterdata_df)
+                        excel_file = crear_excel_descarga(df_conceptos, df_netos, masterdata_df)
                         
                         if excel_file:
                             st.download_button(
-                                label="📁 Descargar Excel procesado (SOLO 2 hojas)",
+                                label="📁 Descargar Excel (Power Query Logic)",
                                 data=excel_file.getvalue(),
-                                file_name=f"Preno_convertida_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                file_name=f"Preno_convertida_PowerQuery_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 type="primary"
                             )
                             
-                            st.success("✅ Archivo generado correctamente con estructura exacta del archivo de referencia")
+                            st.success("✅ Archivo generado con lógica exacta de Power Query")
                         else:
-                            st.error("❌ Error al generar el archivo de descarga")
+                            st.error("❌ Error al generar archivo")
                             
         else:
-            st.warning("⚠️ Por favor carga ambos archivos antes de procesar.")
+            st.warning("⚠️ Por favor carga ambos archivos")
     
-    # Información adicional en el sidebar
     st.sidebar.markdown("---")
     st.sidebar.markdown("""
-    ### 🎯 ESTRUCTURA EXACTA:
-    
-    **HOJA NETOS:**
-    - NETO: "Total General:"
-    - Valor: Monto calculado 
-    - SAP, CÉDULA, NOMBRE, etc.
-    
-    **HOJA PRENO_CONVERTIDA:**  
-    - CÓDIGO: Y050, 9262, 9263, etc.
-    - CONCEPTO: Apoyo de Sostenimiento, etc.
-    - Múltiples filas por empleado
-    
-    ⚠️ **NO SE GENERAN OTRAS HOJAS**
+    ### 🔧 LÓGICA POWER QUERY REPLICADA:
+    - Encoding: latin-1 (CP1252)
+    - SAP desde "Núm. Personal" + Fill Down
+    - Filtros exactos de conceptos
+    - Parsing por posiciones fijas
+    - JOINs por SAP = "Nº pers."
     """)
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("""
-    <div style='text-align: center; font-size: 10px; color: #888;'>
-        Nómina 2025<br>
-        Desarrollado by @jeysshon<br>
-        🎯 Versión FINAL - Estructura exacta
-    </div>
-    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
