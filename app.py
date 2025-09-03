@@ -288,9 +288,36 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
                 cols_base = [c for c in cols_map.keys() if c in netos.columns]
                 df_final = netos[cols_base].rename(columns=cols_map)
                 df_final['SALARIO'] = netos['SALARIO']
+                
+                # Convertir F. ING a formato fecha
+                if 'F. ING' in df_final.columns:
+                    df_final['F. ING'] = pd.to_datetime(df_final['F. ING'], errors='coerce')
+                
                 order = ['NETO','Valor','SAP','CÉDULA','NOMBRE','REGIONAL','CE_COSTE','SALARIO','F. ING','CARGO','NIVEL']
                 df_final = df_final[[c for c in order if c in df_final.columns]]
                 df_final.to_excel(writer, sheet_name='Netos', index=False)
+                
+                # Aplicar formato de fecha con openpyxl
+                if 'F. ING' in df_final.columns:
+                    worksheet = writer.sheets['Netos']
+                    
+                    # Encontrar la columna F. ING
+                    f_ing_col = None
+                    for idx, col in enumerate(df_final.columns):
+                        if col == 'F. ING':
+                            f_ing_col = idx + 1  # openpyxl usa índices 1-based
+                            break
+                    
+                    if f_ing_col is not None:
+                        from openpyxl.styles import NamedStyle
+                        
+                        # Crear estilo de fecha
+                        date_style = NamedStyle(name='date_style', number_format='DD/MM/YYYY')
+                        
+                        # Aplicar formato a toda la columna (desde fila 2 para saltar headers)
+                        for row in range(2, len(df_final) + 2):
+                            cell = worksheet.cell(row=row, column=f_ing_col)
+                            cell.number_format = 'DD/MM/YYYY'
 
             if df_conceptos is not None and masterdata_df is not None:
                 conceptos = pd.merge(df_conceptos, masterdata_df, left_on='SAP', right_on='Nº pers.', how='left')
@@ -303,9 +330,49 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
                 cols_base = [c for c in cols_map.keys() if c in conceptos.columns]
                 df_final = conceptos[cols_base].rename(columns=cols_map)
                 df_final['SALARIO'] = conceptos['SALARIO']
+                
+                # Convertir F. INGRESO a formato fecha
+                if 'F. INGRESO' in df_final.columns:
+                    def convertir_fecha(fecha):
+                        if pd.isna(fecha):
+                            return None
+                        # Si es un número (serial de Excel)
+                        if isinstance(fecha, (int, float)):
+                            try:
+                                # Convertir serial de Excel a fecha
+                                import datetime
+                                base_date = datetime.datetime(1899, 12, 30)  # Base de Excel
+                                return base_date + datetime.timedelta(days=fecha)
+                            except:
+                                return None
+                        # Si es string, intentar convertir
+                        try:
+                            return pd.to_datetime(fecha, errors='coerce')
+                        except:
+                            return None
+                    
+                    df_final['F. INGRESO'] = df_final['F. INGRESO'].apply(convertir_fecha)
+                
                 order = ['CÓDIGO','CONCEPTO','CANTIDAD','VALOR','SAP','CÉDULA','NOMBRE','SALARIO','F. INGRESO','CARGO','NIVEL']
                 df_final = df_final[[c for c in order if c in df_final.columns]]
                 df_final.to_excel(writer, sheet_name='Preno_Convertida', index=False)
+                
+                # Aplicar formato de fecha con openpyxl
+                if 'F. INGRESO' in df_final.columns:
+                    worksheet = writer.sheets['Preno_Convertida']
+                    
+                    # Encontrar la columna F. INGRESO
+                    f_ingreso_col = None
+                    for idx, col in enumerate(df_final.columns):
+                        if col == 'F. INGRESO':
+                            f_ingreso_col = idx + 1  # openpyxl usa índices 1-based
+                            break
+                    
+                    if f_ingreso_col is not None:
+                        # Aplicar formato a toda la columna (desde fila 2 para saltar headers)
+                        for row in range(2, len(df_final) + 2):
+                            cell = worksheet.cell(row=row, column=f_ingreso_col)
+                            cell.number_format = 'DD/MM/YYYY'
 
         output.seek(0)
         return output
