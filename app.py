@@ -19,200 +19,263 @@ st.set_page_config(
 )
 
 # -------------------------------
-# Estilos mejorados y atractivos
+# Estilos adaptativos (claro/oscuro + responsivo)
 # -------------------------------
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* Variables CSS */
+    /* Variables CSS Adaptivas */
     :root {
-        --primary-color: #1e40af;
+        --primary-color: #2563eb;
         --secondary-color: #3b82f6;
-        --accent-color: #06b6d4;
+        --accent-color: #0ea5e9;
         --success-color: #10b981;
         --warning-color: #f59e0b;
         --error-color: #ef4444;
         --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        --glass-bg: rgba(255, 255, 255, 0.1);
-        --glass-border: rgba(255, 255, 255, 0.2);
-        --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
     }
 
-    /* Reset y fuentes */
+    /* Tema claro */
+    [data-theme="light"], .stApp {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8fafc;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --glass-bg: rgba(255, 255, 255, 0.8);
+        --glass-border: rgba(148, 163, 184, 0.2);
+        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --border: rgba(148, 163, 184, 0.3);
+        --hover-bg: rgba(248, 250, 252, 0.8);
+    }
+
+    /* Tema oscuro */
+    [data-theme="dark"] {
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --glass-bg: rgba(30, 41, 59, 0.8);
+        --glass-border: rgba(148, 163, 184, 0.1);
+        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+        --border: rgba(148, 163, 184, 0.1);
+        --hover-bg: rgba(30, 41, 59, 0.8);
+    }
+
+    /* Auto-detección del tema del sistema */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --glass-bg: rgba(30, 41, 59, 0.8);
+            --glass-border: rgba(148, 163, 184, 0.1);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+            --border: rgba(148, 163, 184, 0.1);
+            --hover-bg: rgba(30, 41, 59, 0.8);
+        }
+    }
+
+    @media (prefers-color-scheme: light) {
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.8);
+            --glass-border: rgba(148, 163, 184, 0.2);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --border: rgba(148, 163, 184, 0.3);
+            --hover-bg: rgba(248, 250, 252, 0.8);
+        }
+    }
+
+    /* Reset y fuentes adaptivos */
     .main {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        transition: all 0.3s ease;
     }
     
-    /* Header principal */
+    .stApp {
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+    }
+    
+    /* Header principal responsivo */
     .main-header {
         background: var(--gradient-primary);
         padding: 2rem 1.5rem;
-        border-radius: 20px;
+        border-radius: 16px;
         margin-bottom: 2rem;
         color: white;
         text-align: center;
         backdrop-filter: blur(10px);
-        box-shadow: var(--shadow);
+        box-shadow: var(--shadow-lg);
         border: 1px solid var(--glass-border);
+        transition: all 0.3s ease;
     }
     
     .main-title {
-        font-size: 2.5rem;
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
         font-weight: 700;
         margin-bottom: 0.5rem;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        line-height: 1.2;
     }
     
     .main-subtitle {
-        font-size: 1.1rem;
+        font-size: clamp(0.9rem, 2.5vw, 1.1rem);
         font-weight: 400;
         opacity: 0.9;
         margin-bottom: 0;
+        line-height: 1.4;
     }
     
-    /* Tarjetas mejoradas */
+    /* Tarjetas adaptivas */
     .glass-card {
         background: var(--glass-bg);
         backdrop-filter: blur(10px);
-        border-radius: 16px;
+        border-radius: 12px;
         padding: 1.5rem;
         margin: 1rem 0;
         border: 1px solid var(--glass-border);
         box-shadow: var(--shadow);
         transition: all 0.3s ease;
+        color: var(--text-primary);
     }
     
     .glass-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+        box-shadow: var(--shadow-lg);
+        background: var(--hover-bg);
     }
     
-    /* Botones personalizados */
-    .custom-button {
-        background: var(--gradient-primary);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px 0 rgba(31, 38, 135, 0.4);
-        text-decoration: none;
-        display: inline-block;
+    .glass-card h3 {
+        color: var(--text-primary);
+        margin-top: 0;
+        font-size: clamp(1.1rem, 3vw, 1.3rem);
+    }
+    
+    .glass-card p {
+        color: var(--text-secondary);
+        line-height: 1.6;
+        font-size: clamp(0.85rem, 2vw, 1rem);
+    }
+
+    /* Feature tags */
+    .feature-tag {
+        padding: 0.6rem 1rem;
+        border-radius: 25px;
         text-align: center;
-        margin: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin: 0.5rem 0;
+        transition: all 0.3s ease;
+        border: 1px solid;
     }
     
-    .custom-button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px 0 rgba(31, 38, 135, 0.6);
-        background: var(--gradient-secondary);
+    .tag-success {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.3);
     }
     
-    .success-button {
-        background: var(--gradient-success);
+    .tag-primary {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        border-color: rgba(59, 130, 246, 0.3);
     }
     
-    .success-button:hover {
-        background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
+    .tag-warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border-color: rgba(245, 158, 11, 0.3);
     }
     
-    /* Métricas mejoradas */
+    /* Métricas responsivas */
     .metric-card {
         background: var(--glass-bg);
         backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 1.5rem;
+        border-radius: 12px;
+        padding: clamp(1rem, 3vw, 1.5rem);
         text-align: center;
         border: 1px solid var(--glass-border);
         box-shadow: var(--shadow);
         transition: all 0.3s ease;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
     }
     
     .metric-card:hover {
         transform: scale(1.02);
+        background: var(--hover-bg);
     }
     
     .metric-value {
-        font-size: 2.5rem;
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
         font-weight: 700;
         color: var(--accent-color);
         margin-bottom: 0.5rem;
+        line-height: 1;
     }
     
     .metric-label {
-        font-size: 0.9rem;
+        font-size: clamp(0.75rem, 2vw, 0.9rem);
         font-weight: 500;
-        opacity: 0.8;
+        color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        line-height: 1.2;
     }
-    
-    /* Sidebar mejorado */
-    .sidebar .sidebar-content {
+
+    /* Status cards responsivos */
+    .status-card {
         background: var(--glass-bg);
-        backdrop-filter: blur(10px);
-    }
-    
-    /* File uploader personalizado */
-    .uploadedfile {
-        background: var(--glass-bg);
-        border-radius: 12px;
-        border: 2px dashed var(--glass-border);
-        padding: 1rem;
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        padding: clamp(0.8rem, 2vw, 1rem);
         margin: 0.5rem 0;
-    }
-    
-    /* Tabs personalizados */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: var(--glass-bg);
-        border-radius: 12px;
-        padding: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        border-radius: 8px;
-        padding: 0 24px;
-        font-weight: 500;
-        border: none;
-        background: transparent;
+        backdrop-filter: blur(10px);
         transition: all 0.3s ease;
     }
     
-    .stTabs [aria-selected="true"] {
-        background: var(--gradient-primary) !important;
-        color: white !important;
+    .status-success {
+        border-color: var(--success-color);
+        background: rgba(16, 185, 129, 0.1);
     }
     
-    /* Alertas mejoradas */
-    .stAlert {
-        border-radius: 12px;
-        border: none;
-        box-shadow: var(--shadow);
+    .status-info {
+        border-color: var(--accent-color);
+        background: rgba(14, 165, 233, 0.1);
     }
     
-    /* Footer mejorado */
+    /* Footer adaptivo */
     .footer {
         margin-top: 3rem;
-        padding: 2rem 0;
+        padding: 2rem 1rem;
         text-align: center;
         background: var(--glass-bg);
-        border-radius: 16px;
+        border-radius: 12px;
         backdrop-filter: blur(10px);
         border: 1px solid var(--glass-border);
+        color: var(--text-primary);
     }
     
     .footer-text {
-        font-size: 0.9rem;
-        opacity: 0.8;
+        font-size: clamp(0.8rem, 2vw, 0.9rem);
+        color: var(--text-secondary);
         margin-bottom: 0.5rem;
+        line-height: 1.4;
     }
     
     .footer-brand {
@@ -222,36 +285,7 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
-    
-    /* Animaciones y transiciones */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.7;
-        }
-    }
-    
-    .fade-in {
-        animation: fadeInUp 0.6s ease-out;
-    }
-    
-    .pulse {
-        animation: pulse 2s infinite;
-    }
-    
+
     /* Responsivo Mobile First */
     @media (max-width: 768px) {
         .main-header {
@@ -264,19 +298,8 @@ st.markdown("""
             margin: 0.8rem 0;
         }
         
-        .custom-button {
-            width: 100%;
-            margin: 0.25rem 0;
-            min-width: unset;
-        }
-        
         .metric-card {
             margin-bottom: 0.8rem;
-        }
-        
-        .feature-tag {
-            width: calc(50% - 0.5rem);
-            text-align: center;
         }
         
         .footer {
@@ -296,41 +319,6 @@ st.markdown("""
         
         .metric-card {
             padding: 1rem;
-        }
-        
-        .feature-tag {
-            width: 100%;
-            margin: 0.2rem 0;
-        }
-    }
-    
-    /* Tablet */
-    @media (min-width: 769px) and (max-width: 1024px) {
-        .main-title {
-            font-size: 2.2rem;
-        }
-        
-        .main-subtitle {
-            font-size: 1rem;
-        }
-        
-        .custom-button {
-            min-width: 140px;
-        }
-    }
-    
-    /* Desktop grande */
-    @media (min-width: 1200px) {
-        .main-header {
-            padding: 2.5rem 2rem;
-        }
-        
-        .glass-card {
-            padding: 2rem;
-        }
-        
-        .metric-card {
-            padding: 2rem;
         }
     }
     
@@ -355,53 +343,11 @@ st.markdown("""
         backdrop-filter: blur(10px);
         border: 1px solid var(--glass-border);
     }
-    
-    .stDataFrame [data-testid="stDataFrame"] > div {
-        background-color: var(--bg-primary) !important;
-        color: var(--text-primary) !important;
-    }
-    
-    /* Streamlit components override */
-    .stSelectbox > div > div {
-        background-color: var(--glass-bg) !important;
-        color: var(--text-primary) !important;
-        border-color: var(--glass-border) !important;
-    }
-    
-    .stFileUploader > div {
-        background-color: var(--glass-bg) !important;
-        border-color: var(--glass-border) !important;
-        color: var(--text-primary) !important;
-    }
-    
-    /* Spinner personalizado */
-    .stSpinner > div {
-        border-color: var(--accent-color) !important;
-    }
-    
-    /* Success/Error messages */
-    .stSuccess {
-        background-color: rgba(16, 185, 129, 0.1) !important;
-        color: var(--success-color) !important;
-        border-color: var(--success-color) !important;
-    }
-    
-    .stError {
-        background-color: rgba(239, 68, 68, 0.1) !important;
-        color: var(--error-color) !important;
-        border-color: var(--error-color) !important;
-    }
-    
-    .stWarning {
-        background-color: rgba(245, 158, 11, 0.1) !important;
-        color: var(--warning-color) !important;
-        border-color: var(--warning-color) !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------
-# Utilidades (sin cambios)
+# Utilidades
 # -------------------------------
 def safe_slice(s: str, a: int, b: int) -> str:
     if a >= len(s): return ""
@@ -467,7 +413,7 @@ def adjuntar_salario(df_merged: pd.DataFrame) -> pd.DataFrame:
     return df_merged
 
 # -------------------------------
-# Parsing de Liquidación (conceptos) - sin cambios
+# Parsing de Liquidación (conceptos)
 # -------------------------------
 def procesar_liquidacion_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     lineas = contenido_archivo_txt.split('\n')
@@ -510,7 +456,7 @@ def procesar_liquidacion_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     return out
 
 # -------------------------------
-# Parsing de Netos - sin cambios
+# Parsing de Netos
 # -------------------------------
 def procesar_netos_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     lineas = contenido_archivo_txt.split('\n')
@@ -542,7 +488,7 @@ def procesar_netos_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     return out
 
 # -------------------------------
-# Carga + Consolidación - sin cambios
+# Carga + Consolidación
 # -------------------------------
 def procesar_archivos(archivo_liquidacion, archivo_masterdata):
     try:
@@ -554,22 +500,51 @@ def procesar_archivos(archivo_liquidacion, archivo_masterdata):
             st.error("No se pudieron extraer datos del archivo de liquidación.")
             return None, None, None
 
+        # Cargar MASTERDATA con soporte para múltiples formatos
         try:
-            masterdata_df = pd.read_excel(archivo_masterdata, engine='openpyxl')
-        except:
-            masterdata_df = pd.read_excel(archivo_masterdata)
+            archivo_nombre = archivo_masterdata.name.lower()
+            
+            if archivo_nombre.endswith('.csv'):
+                # Para archivos CSV
+                masterdata_df = pd.read_csv(archivo_masterdata, encoding='utf-8')
+            elif archivo_nombre.endswith('.xlsb'):
+                # Para archivos Excel binarios (.xlsb)
+                masterdata_df = pd.read_excel(archivo_masterdata, engine='pyxlsb')
+            elif archivo_nombre.endswith(('.xlsx', '.xls', '.xlsm')):
+                # Para archivos Excel estándar
+                try:
+                    masterdata_df = pd.read_excel(archivo_masterdata, engine='openpyxl')
+                except:
+                    # Fallback para archivos .xls antiguos
+                    masterdata_df = pd.read_excel(archivo_masterdata, engine='xlrd')
+            else:
+                # Intento automático
+                masterdata_df = pd.read_excel(archivo_masterdata)
+                
+        except Exception as e:
+            st.error(f"Error al leer MASTERDATA: {str(e)}")
+            st.info("💡 Tip: Verifica que el archivo no esté corrupto y contenga la columna 'Nº pers.'")
+            return None, None, None
 
         masterdata_df.columns = masterdata_df.columns.str.strip()
+        
+        # Verificar que existe la columna necesaria para el matching
+        if 'Nº pers.' not in masterdata_df.columns:
+            columnas_disponibles = list(masterdata_df.columns)
+            st.error(f"❌ No se encontró la columna 'Nº pers.' en MASTERDATA")
+            st.info(f"📋 Columnas disponibles: {', '.join(columnas_disponibles[:10])}")
+            return None, None, None
+            
         return df_conceptos, df_netos, masterdata_df
 
     except Exception as e:
         st.error(f"Error durante el procesamiento: {str(e)}")
         import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
+        st.error(f"Detalles técnicos: {traceback.format_exc()}")
         return None, None, None
 
 # -------------------------------
-# Exportación a Excel - sin cambios
+# Exportación a Excel
 # -------------------------------
 def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
     output = io.BytesIO()
@@ -625,33 +600,52 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
 def main():
     # Header principal mejorado
     st.markdown("""
-    <div class="main-header fade-in">
+    <div class="main-header">
         <h1 class="main-title">💼 Jerónimo Martins Colombia</h1>
         <p class="main-subtitle">Sistema de Consolidación de Nómina 2025</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Descripción con tarjeta de vidrio
+    # Descripción principal
     st.markdown("""
-    <div class="glass-card fade-in">
+    <div class="glass-card">
         <h3>🚀 Consolidación Inteligente</h3>
         <p>Sistema avanzado de <strong>parsing posicional</strong> que extrae automáticamente conceptos y netos 
         de archivos de liquidación, identifica códigos SAP y los consolida con el MASTERDATA para generar 
         reportes listos para análisis empresarial.</p>
-        
-        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem;">
-            <span style="background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
-                ✅ Parsing Automático
-            </span>
-            <span style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
-                📊 Matching SAP
-            </span>
-            <span style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
-                📈 Análisis Empresarial
-            </span>
-        </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Tags de características en columnas separadas
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div class="feature-tag tag-success">
+            ✅ Parsing Automático
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="feature-tag tag-primary">
+            📊 Matching SAP
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="feature-tag tag-warning">
+            📈 Análisis Empresarial
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="feature-tag tag-primary">
+            📁 Multi-formato
+        </div>
+        """, unsafe_allow_html=True)
 
     # Sidebar mejorado
     st.sidebar.markdown("""
@@ -668,21 +662,21 @@ def main():
     )
     
     archivo_masterdata = st.sidebar.file_uploader(
-        "📊 MASTERDATA (.xlsx)", 
-        type=['xlsx'], 
-        help="Archivo Excel que debe incluir la columna 'Nº pers.' para el matching con SAP."
+        "📊 MASTERDATA (Excel)", 
+        type=['xlsx', 'xlsb', 'xls', 'xlsm', 'csv'], 
+        help="Archivo Excel (xlsx, xlsb, xls, xlsm) o CSV que debe incluir la columna 'Nº pers.' para el matching con SAP."
     )
     
     # Estado de archivos mejorado
     if archivo_liquidacion or archivo_masterdata:
         st.sidebar.markdown("### 📋 Estado de Archivos")
         if archivo_liquidacion:
-            st.sidebar.markdown("""
+            st.sidebar.markdown(f"""
             <div class="status-card status-success">
                 ✅ <strong>Liquidación cargada</strong><br>
-                <small>📄 {}</small>
+                <small>📄 {archivo_liquidacion.name}</small>
             </div>
-            """.format(archivo_liquidacion.name), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         if archivo_masterdata:
             formato = archivo_masterdata.name.split('.')[-1].upper()
             st.sidebar.markdown(f"""
