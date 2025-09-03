@@ -9,7 +9,7 @@ from datetime import datetime
 import io
 
 # -------------------------------
-# Configuración mínima de página
+# Configuración de página
 # -------------------------------
 st.set_page_config(
     page_title="JMC · Nómina 2025 — Consolidación",
@@ -19,19 +19,389 @@ st.set_page_config(
 )
 
 # -------------------------------
-# Estilos sobrios
+# Estilos mejorados y atractivos
 # -------------------------------
 st.markdown("""
 <style>
-  .soft-card {border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; margin:10px 0 18px 0; background:rgba(120,120,120,.04);}
-  .hr {height:1px; background:rgba(255,255,255,.08); margin:10px 0 14px 0;}
-  .footnote {font-size:12px; opacity:.75;}
-  footer {visibility:hidden;}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Variables CSS */
+    :root {
+        --primary-color: #1e40af;
+        --secondary-color: #3b82f6;
+        --accent-color: #06b6d4;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --error-color: #ef4444;
+        --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --glass-bg: rgba(255, 255, 255, 0.1);
+        --glass-border: rgba(255, 255, 255, 0.2);
+        --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    }
+
+    /* Reset y fuentes */
+    .main {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Header principal */
+    .main-header {
+        background: var(--gradient-primary);
+        padding: 2rem 1.5rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        color: white;
+        text-align: center;
+        backdrop-filter: blur(10px);
+        box-shadow: var(--shadow);
+        border: 1px solid var(--glass-border);
+    }
+    
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .main-subtitle {
+        font-size: 1.1rem;
+        font-weight: 400;
+        opacity: 0.9;
+        margin-bottom: 0;
+    }
+    
+    /* Tarjetas mejoradas */
+    .glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow);
+        transition: all 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+    }
+    
+    /* Botones personalizados */
+    .custom-button {
+        background: var(--gradient-primary);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px 0 rgba(31, 38, 135, 0.4);
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+        margin: 0.5rem;
+    }
+    
+    .custom-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px 0 rgba(31, 38, 135, 0.6);
+        background: var(--gradient-secondary);
+    }
+    
+    .success-button {
+        background: var(--gradient-success);
+    }
+    
+    .success-button:hover {
+        background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%);
+    }
+    
+    /* Métricas mejoradas */
+    .metric-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow);
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        transform: scale(1.02);
+    }
+    
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--accent-color);
+        margin-bottom: 0.5rem;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Sidebar mejorado */
+    .sidebar .sidebar-content {
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+    }
+    
+    /* File uploader personalizado */
+    .uploadedfile {
+        background: var(--glass-bg);
+        border-radius: 12px;
+        border: 2px dashed var(--glass-border);
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    
+    /* Tabs personalizados */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: var(--glass-bg);
+        border-radius: 12px;
+        padding: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        border-radius: 8px;
+        padding: 0 24px;
+        font-weight: 500;
+        border: none;
+        background: transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: var(--gradient-primary) !important;
+        color: white !important;
+    }
+    
+    /* Alertas mejoradas */
+    .stAlert {
+        border-radius: 12px;
+        border: none;
+        box-shadow: var(--shadow);
+    }
+    
+    /* Footer mejorado */
+    .footer {
+        margin-top: 3rem;
+        padding: 2rem 0;
+        text-align: center;
+        background: var(--glass-bg);
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--glass-border);
+    }
+    
+    .footer-text {
+        font-size: 0.9rem;
+        opacity: 0.8;
+        margin-bottom: 0.5rem;
+    }
+    
+    .footer-brand {
+        font-weight: 600;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    /* Animaciones y transiciones */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.7;
+        }
+    }
+    
+    .fade-in {
+        animation: fadeInUp 0.6s ease-out;
+    }
+    
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    /* Responsivo Mobile First */
+    @media (max-width: 768px) {
+        .main-header {
+            padding: 1.5rem 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .glass-card {
+            padding: 1rem;
+            margin: 0.8rem 0;
+        }
+        
+        .custom-button {
+            width: 100%;
+            margin: 0.25rem 0;
+            min-width: unset;
+        }
+        
+        .metric-card {
+            margin-bottom: 0.8rem;
+        }
+        
+        .feature-tag {
+            width: calc(50% - 0.5rem);
+            text-align: center;
+        }
+        
+        .footer {
+            padding: 1.5rem 1rem;
+            margin-top: 2rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .main-header {
+            padding: 1rem 0.8rem;
+        }
+        
+        .glass-card {
+            padding: 0.8rem;
+        }
+        
+        .metric-card {
+            padding: 1rem;
+        }
+        
+        .feature-tag {
+            width: 100%;
+            margin: 0.2rem 0;
+        }
+    }
+    
+    /* Tablet */
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .main-title {
+            font-size: 2.2rem;
+        }
+        
+        .main-subtitle {
+            font-size: 1rem;
+        }
+        
+        .custom-button {
+            min-width: 140px;
+        }
+    }
+    
+    /* Desktop grande */
+    @media (min-width: 1200px) {
+        .main-header {
+            padding: 2.5rem 2rem;
+        }
+        
+        .glass-card {
+            padding: 2rem;
+        }
+        
+        .metric-card {
+            padding: 2rem;
+        }
+    }
+    
+    /* Ocultar elementos Streamlit */
+    footer {visibility: hidden;}
+    .stDeployButton {display: none;}
+    header[data-testid="stHeader"] {display: none;}
+    
+    /* Progress bar adaptivo */
+    .stProgress > div > div > div > div {
+        background: var(--gradient-primary);
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    /* DataFrames adaptativos */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--glass-border);
+    }
+    
+    .stDataFrame [data-testid="stDataFrame"] > div {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Streamlit components override */
+    .stSelectbox > div > div {
+        background-color: var(--glass-bg) !important;
+        color: var(--text-primary) !important;
+        border-color: var(--glass-border) !important;
+    }
+    
+    .stFileUploader > div {
+        background-color: var(--glass-bg) !important;
+        border-color: var(--glass-border) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Spinner personalizado */
+    .stSpinner > div {
+        border-color: var(--accent-color) !important;
+    }
+    
+    /* Success/Error messages */
+    .stSuccess {
+        background-color: rgba(16, 185, 129, 0.1) !important;
+        color: var(--success-color) !important;
+        border-color: var(--success-color) !important;
+    }
+    
+    .stError {
+        background-color: rgba(239, 68, 68, 0.1) !important;
+        color: var(--error-color) !important;
+        border-color: var(--error-color) !important;
+    }
+    
+    .stWarning {
+        background-color: rgba(245, 158, 11, 0.1) !important;
+        color: var(--warning-color) !important;
+        border-color: var(--warning-color) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------
-# Utilidades
+# Utilidades (sin cambios)
 # -------------------------------
 def safe_slice(s: str, a: int, b: int) -> str:
     if a >= len(s): return ""
@@ -97,7 +467,7 @@ def adjuntar_salario(df_merged: pd.DataFrame) -> pd.DataFrame:
     return df_merged
 
 # -------------------------------
-# Parsing de Liquidación (conceptos)
+# Parsing de Liquidación (conceptos) - sin cambios
 # -------------------------------
 def procesar_liquidacion_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     lineas = contenido_archivo_txt.split('\n')
@@ -140,7 +510,7 @@ def procesar_liquidacion_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     return out
 
 # -------------------------------
-# Parsing de Netos
+# Parsing de Netos - sin cambios
 # -------------------------------
 def procesar_netos_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     lineas = contenido_archivo_txt.split('\n')
@@ -172,7 +542,7 @@ def procesar_netos_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
     return out
 
 # -------------------------------
-# Carga + Consolidación
+# Carga + Consolidación - sin cambios
 # -------------------------------
 def procesar_archivos(archivo_liquidacion, archivo_masterdata):
     try:
@@ -199,7 +569,7 @@ def procesar_archivos(archivo_liquidacion, archivo_masterdata):
         return None, None, None
 
 # -------------------------------
-# Exportación a Excel (incluye SALARIO)
+# Exportación a Excel - sin cambios
 # -------------------------------
 def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
     output = io.BytesIO()
@@ -250,60 +620,185 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
         return None
 
 # -------------------------------
-# UI
+# UI MEJORADA
 # -------------------------------
 def main():
-    st.title("Jerónimo Martins Colombia — Nómina 2025")
+    # Header principal mejorado
     st.markdown("""
-    <div class="soft-card">
-      Consolidación de <strong>conceptos</strong> y <strong>netos</strong> mediante parsing posicional,
-      identificación/propagación de <strong>SAP ID</strong> y unión con <strong>MASTERDATA</strong>.
-      Salida: dataset listo para análisis y soporte a decisiones.
+    <div class="main-header fade-in">
+        <h1 class="main-title">💼 Jerónimo Martins Colombia</h1>
+        <p class="main-subtitle">Sistema de Consolidación de Nómina 2025</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Descripción con tarjeta de vidrio
+    st.markdown("""
+    <div class="glass-card fade-in">
+        <h3>🚀 Consolidación Inteligente</h3>
+        <p>Sistema avanzado de <strong>parsing posicional</strong> que extrae automáticamente conceptos y netos 
+        de archivos de liquidación, identifica códigos SAP y los consolida con el MASTERDATA para generar 
+        reportes listos para análisis empresarial.</p>
+        
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem;">
+            <span style="background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
+                ✅ Parsing Automático
+            </span>
+            <span style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
+                📊 Matching SAP
+            </span>
+            <span style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
+                📈 Análisis Empresarial
+            </span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.sidebar.header("Cargar archivos")
-    archivo_liquidacion = st.sidebar.file_uploader("Archivo de liquidación (.txt)", type=['txt'], help="Codificación latin-1 (CP1252).")
-    archivo_masterdata = st.sidebar.file_uploader("MASTERDATA (.xlsx)", type=['xlsx'], help="Debe incluir 'Nº pers.' para el matching.")
+    # Sidebar mejorado
+    st.sidebar.markdown("""
+    <div class="glass-card">
+        <h3 style="margin-top: 0;">📁 Cargar Archivos</h3>
+        <p style="font-size: 0.9rem; opacity: 0.8;">Sube los archivos necesarios para iniciar el procesamiento</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    archivo_liquidacion = st.sidebar.file_uploader(
+        "📄 Archivo de liquidación (.txt)", 
+        type=['txt'], 
+        help="Archivo con codificación latin-1 (CP1252) que contiene los datos de liquidación."
+    )
+    
+    archivo_masterdata = st.sidebar.file_uploader(
+        "📊 MASTERDATA (.xlsx)", 
+        type=['xlsx'], 
+        help="Archivo Excel que debe incluir la columna 'Nº pers.' para el matching con SAP."
+    )
+    
+    # Estado de archivos
+    if archivo_liquidacion or archivo_masterdata:
+        st.sidebar.markdown("### 📋 Estado de Archivos")
+        if archivo_liquidacion:
+            st.sidebar.success("✅ Liquidación cargada")
+        if archivo_masterdata:
+            st.sidebar.success("✅ MASTERDATA cargado")
 
-    if st.sidebar.button("Procesar", type="primary"):
+    # Botón de procesamiento mejorado
+    if st.sidebar.button("🚀 Procesar Datos", type="primary", use_container_width=True):
         if archivo_liquidacion is not None and archivo_masterdata is not None:
-            with st.spinner('Ejecutando parsing y matching...'):
+            # Progress bar personalizado
+            progress_container = st.empty()
+            progress_container.markdown("""
+            <div class="glass-card">
+                <h4>⚡ Procesando datos...</h4>
+                <p>Ejecutando parsing posicional y consolidación con MASTERDATA</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            progress_bar = st.progress(0)
+            
+            with st.spinner('🔄 Analizando archivos...'):
+                progress_bar.progress(25)
                 df_conceptos, df_netos, masterdata_df = procesar_archivos(archivo_liquidacion, archivo_masterdata)
+                progress_bar.progress(100)
+                
+            progress_container.empty()
+            
             if df_conceptos is not None or df_netos is not None:
-                st.success("Procesamiento completado.")
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Conceptos extraídos", len(df_conceptos) if df_conceptos is not None else 0)
-                c2.metric("Netos extraídos", len(df_netos) if df_netos is not None else 0)
-                c3.metric("Registros MASTERDATA", len(masterdata_df))
+                st.success("🎉 ¡Procesamiento completado exitosamente!")
+                
+                # Métricas mejoradas
+                st.markdown("### 📊 Resultados del Procesamiento")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-value">{len(df_conceptos) if df_conceptos is not None else 0:,}</div>
+                        <div class="metric-label">Conceptos Extraídos</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-value">{len(df_netos) if df_netos is not None else 0:,}</div>
+                        <div class="metric-label">Netos Procesados</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-value">{len(masterdata_df):,}</div>
+                        <div class="metric-label">Registros MASTERDATA</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-                tab1, tab2 = st.tabs(["Vista previa", "Descargar"])
+                # Tabs mejorados
+                tab1, tab2 = st.tabs(["👁️ Vista Previa", "📥 Descargar Resultados"])
+                
                 with tab1:
-                    st.subheader("Preno_Convertida — primeras 20 filas")
+                    st.markdown("### 📋 Preno_Convertida — Muestra de Datos")
                     if df_conceptos is not None:
-                        st.dataframe(df_conceptos.head(20), use_container_width=True)
-                    st.subheader("Netos — primeras 10 filas")
+                        st.dataframe(
+                            df_conceptos.head(20), 
+                            use_container_width=True,
+                            height=400
+                        )
+                    
+                    st.markdown("### 💰 Netos — Resumen")
                     if df_netos is not None:
-                        st.dataframe(df_netos.head(10), use_container_width=True)
+                        st.dataframe(
+                            df_netos.head(10), 
+                            use_container_width=True,
+                            height=300
+                        )
 
                 with tab2:
+                    st.markdown("""
+                    <div class="glass-card">
+                        <h3>📁 Archivo Consolidado</h3>
+                        <p>Descarga el archivo Excel con todas las hojas procesadas, incluyendo datos de SALARIO y matching completo con MASTERDATA.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                     excel_file = crear_excel_descarga(df_conceptos, df_netos, masterdata_df)
+                    
                     if excel_file:
+                        filename = f"JMC_Nomina2025_Consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        
                         st.download_button(
-                            label="Descargar Excel (consolidado)",
+                            label="📥 Descargar Excel Consolidado",
                             data=excel_file.getvalue(),
-                            file_name=f"JMC_Nomina2025_Consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            type="primary"
+                            type="primary",
+                            use_container_width=True
                         )
-                        st.caption("Archivo consolidado con Netos y Preno_Convertida (incluye SALARIO).")
+                        
+                        st.markdown("""
+                        <div style="background: rgba(16, 185, 129, 0.1); border-radius: 12px; padding: 1rem; margin-top: 1rem;">
+                            <p style="margin: 0; color: #10b981;">
+                                ✅ <strong>Archivo listo:</strong> Contiene hojas 'Netos' y 'Preno_Convertida' con datos de SALARIO integrados
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
                     else:
-                        st.error("No fue posible generar el archivo.")
+                        st.error("❌ No fue posible generar el archivo de descarga")
+                        
         else:
-            st.warning("Carga ambos archivos para continuar.")
+            st.warning("⚠️ Por favor, carga ambos archivos para continuar con el procesamiento")
 
-    st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
-    st.caption("Creado por Jeysshon · Jerónimo Martins Colombia · Nómina 2025")
+    # Footer mejorado
+    st.markdown("""
+    <div class="footer">
+        <div class="footer-text">
+            Desarrollado con ❤️ por <span class="footer-brand">Jeysshon</span>
+        </div>
+        <div style="font-size: 0.8rem; opacity: 0.6;">
+            Jerónimo Martins Colombia · Sistema de Nómina 2025
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
