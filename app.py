@@ -1,73 +1,54 @@
+# Jerónimo Martins Colombia — Nómina 2025
+# Creado por Jeysshon
+# Parsing posicional + matching con MASTERDATA. Incluye SALARIO en Netos y Preno_Convertida.
+
 import streamlit as st
 import pandas as pd
 import re
 from datetime import datetime
 import io
 
-# =========================
-# Configuración de la página
-# =========================
+# -------------------------------
+# Configuración mínima de página
+# -------------------------------
 st.set_page_config(
-    page_title="JMC · Nómina 2025 — Parsing & Matching",
-    page_icon="📊",
+    page_title="JMC · Nómina 2025 — Consolidación",
+    page_icon="🧾",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# =========================
-# Estilos de “fina coquetería”
-# =========================
-STYLES = """
+# -------------------------------
+# Estilos sobrios
+# -------------------------------
+st.markdown("""
 <style>
-/* Badges y toques suaves */
-.badges {display:flex; gap:.5rem; flex-wrap:wrap; margin-top:-8px; margin-bottom:8px;}
-.badge {
-  background: linear-gradient(135deg,#10b981 0%, #06b6d4 100%);
-  color: white; padding: 3px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 700; letter-spacing:.2px;
-}
-.subtle {
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(16,185,129,.06);
-  border-radius: 12px; padding: 12px 14px; margin: 6px 0 14px 0;
-}
-footer {visibility:hidden}
-.small {font-size:12px; opacity:.85}
-.hr {height:1px; border:none; background:rgba(255,255,255,.08); margin: 12px 0 16px 0;}
+  .soft-card {border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 16px; margin:10px 0 18px 0; background:rgba(120,120,120,.04);}
+  .hr {height:1px; background:rgba(255,255,255,.08); margin:10px 0 14px 0;}
+  .footnote {font-size:12px; opacity:.75;}
+  footer {visibility:hidden;}
 </style>
-"""
-st.markdown(STYLES, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# =========================
-# Helpers
-# =========================
-def limpiar_columnas_duplicadas(df):
-    """Elimina columnas duplicadas de un DataFrame."""
-    if df is None or df.empty:
-        return df
-    if df.columns.duplicated().any():
-        st.warning(f"⚠️ Columnas duplicadas encontradas: {df.columns[df.columns.duplicated()].tolist()}")
-        df_limpio = df.loc[:, ~df.columns.duplicated()]
-        st.success(f"✅ DataFrame limpiado: {len(df.columns)} -> {len(df_limpio.columns)} columnas")
-        return df_limpio
-    return df
-
+# -------------------------------
+# Utilidades
+# -------------------------------
 def safe_slice(s: str, a: int, b: int) -> str:
-    """Devuelve s[a:b] sin romper si la línea es corta."""
-    if a >= len(s):
-        return ""
+    if a >= len(s): return ""
     return s[a:b]
 
-# --- Parsing robusto de CÓDIGO + CONCEPTO ---
-# Acepta: /5xxx, Y###, Z###, 4 dígitos, o bloques 3–5 dígitos.
+def to_num(v):
+    try:
+        if pd.isna(v) or v == '': return 0
+        return float(str(v).replace('.', '').replace(',', '.'))
+    except:
+        return 0
+
+# código como primer token: /5xxx, Y###, Z###, 4 dígitos o 3–5 dígitos
 CODIGO_REGEX = re.compile(r'^\s*(/5\d+|[YZ]\d{3}|\d{4}|\d{3,5})')
 
 def extraer_codigo_y_concepto(linea: str):
-    """
-    CÓDIGO: primer token válido al inicio (no ancho fijo).
-    CONCEPTO: texto entre el fin del CÓDIGO y la col 50 (previo a CANTIDAD).
-    """
-    texto = linea.replace('\t', ' ')  # evitar "Apoy\t o ..."
+    texto = linea.replace('\t', ' ')
     m = CODIGO_REGEX.match(texto)
     if m:
         codigo = m.group(1).strip()
@@ -79,69 +60,91 @@ def extraer_codigo_y_concepto(linea: str):
     concepto = texto[idx_fin:50].strip()
     return codigo, concepto
 
-# =========================
-# Parsing de archivos
-# =========================
-def procesar_liquidacion_power_query_style(contenido_archivo):
-    """Parsing lineal + tokenización de conceptos + matching SAP."""
-    lineas = contenido_archivo.split('\n')
-    df_inicial = pd.DataFrame({'Linea': [linea.strip('\r') for linea in lineas if linea.strip()]})
+# -------- SALARIO ROBUSTO ----------
+def _normalize(s: str) -> str:
+    s = s.lower().strip()
+    s = s.replace('á','a').replace('é','e').replace('í','i').replace('ó','o').replace('ú','u')
+    return re.sub(r'[^a-z0-9]', '', s)
 
-    # SAP identificado por cabecera y propagado hacia abajo (forward-fill)
+CANDIDATOS_SALARIO = [
+    'importe','importebase','salario','salariobase','sueldo','sueldobase',
+    'basico','basicos','basicointegral','remuneracion','remuneraciones','valorbase'
+]
+
+def adjuntar_salario(df_merged: pd.DataFrame) -> pd.DataFrame:
+    """Crea/normaliza columna SALARIO desde MASTERDATA, aunque tenga espacios o nombres raros."""
+    if 'SALARIO' in df_merged.columns:
+        return df_merged
+
+    norm_map = {col: _normalize(col) for col in df_merged.columns}
+    elegido = None
+    # prioridad: coincidencia contiene alguno de los candidatos
+    for col, key in norm_map.items():
+        if any(cand in key for cand in CANDIDATOS_SALARIO):
+            elegido = col
+            break
+
+    if elegido:
+        df_merged['SALARIO'] = df_merged[elegido]
+    else:
+        # si no encontró nada, crea vacío
+        df_merged['SALARIO'] = pd.NA
+
+    # tipificar a número si es string con separadores
+    if df_merged['SALARIO'].dtype == object:
+        df_merged['SALARIO'] = df_merged['SALARIO'].apply(lambda x: to_num(x) if isinstance(x, str) else x)
+
+    return df_merged
+
+# -------------------------------
+# Parsing de Liquidación (conceptos)
+# -------------------------------
+def procesar_liquidacion_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
+    lineas = contenido_archivo_txt.split('\n')
+    df = pd.DataFrame({'Linea': [linea.strip('\r') for linea in lineas if linea.strip()]})
+
     def extraer_sap(linea):
         if 'Núm. Personal' in linea or 'Nm. Personal' in linea:
             m = re.search(r'Personal\.+(\d+)', linea)
             return m.group(1) if m else None
         return None
 
-    df_inicial['SAP_Ident'] = df_inicial['Linea'].apply(extraer_sap)
-    df_inicial['SAP_Ident'] = df_inicial['SAP_Ident'].fillna(method='ffill')
+    df['SAP_Ident'] = df['Linea'].apply(extraer_sap)
+    df['SAP_Ident'] = df['SAP_Ident'].fillna(method='ffill')
 
-    # Filtrado de líneas que representan conceptos válidos
-    def filtrar_conceptos(linea):
+    def es_concepto(linea):
         s = linea.strip()
-        if 'PESOS CON 00/100' in s:
-            return False
-        if len(s) <= 30:
-            return False
+        if 'PESOS CON 00/100' in s: return False
+        if len(s) <= 30: return False
         codigo, _ = extraer_codigo_y_concepto(s)
         return bool(re.match(r'^(Y|Z|9|2|/5)', codigo))
 
-    df_conceptos = df_inicial[df_inicial['Linea'].apply(filtrar_conceptos)].copy()
+    df = df[df['Linea'].apply(es_concepto)].copy()
 
-    # Parseo final (con CÓDIGO/CONCEPTO robustos)
-    def parsear_partes(row):
+    def parsear(row):
         linea = row['Linea']
         codigo, concepto = extraer_codigo_y_concepto(linea)
         return {
-            'CÓDIGO': codigo,
+            'CÓDIGO':   codigo,
             'CONCEPTO': concepto,
             'CANTIDAD': safe_slice(linea, 50, 70).strip(),
-            'VALOR':   safe_slice(linea, 69, 89).strip(),
-            'SAP':     row['SAP_Ident']
+            'VALOR':    safe_slice(linea, 69, 89).strip(),
+            'SAP':      row['SAP_Ident'],
         }
 
-    partes_list = [parsear_partes(r) for _, r in df_conceptos.iterrows()]
-    df_parseado = pd.DataFrame(partes_list)
+    out = pd.DataFrame([parsear(r) for _, r in df.iterrows()])
+    if not out.empty:
+        out['CANTIDAD'] = out['CANTIDAD'].apply(to_num)
+        out['VALOR']    = out['VALOR'].apply(to_num)
+        out['SAP']      = pd.to_numeric(out['SAP'], errors='coerce')
+    return out
 
-    # Tipificación
-    def to_num(v):
-        try:
-            if pd.isna(v) or v == '':
-                return 0
-            return float(str(v).replace('.', '').replace(',', '.'))
-        except:
-            return 0
-
-    df_parseado['CANTIDAD'] = df_parseado['CANTIDAD'].apply(to_num)
-    df_parseado['VALOR']    = df_parseado['VALOR'].apply(to_num)
-    df_parseado['SAP']      = pd.to_numeric(df_parseado['SAP'], errors='coerce')
-    return df_parseado
-
-def procesar_netos_power_query_style(contenido_archivo):
-    """Extracción de NETOS a partir de líneas marcadas como 'Total General'."""
-    lineas = contenido_archivo.split('\n')
-    df_inicial = pd.DataFrame({'Linea': [linea.strip() for linea in lineas if linea.strip()]})
+# -------------------------------
+# Parsing de Netos
+# -------------------------------
+def procesar_netos_pipeline(contenido_archivo_txt: str) -> pd.DataFrame:
+    lineas = contenido_archivo_txt.split('\n')
+    df = pd.DataFrame({'Linea': [linea.strip() for linea in lineas if linea.strip()]})
 
     def extraer_sap(linea):
         if 'Núm. Personal' in linea or 'Nm. Personal' in linea:
@@ -149,45 +152,33 @@ def procesar_netos_power_query_style(contenido_archivo):
             return m.group(1) if m else None
         return None
 
-    df_inicial['SAP_Ident'] = df_inicial['Linea'].apply(extraer_sap)
-    df_inicial['SAP_Ident'] = df_inicial['SAP_Ident'].fillna(method='ffill')
+    df['SAP_Ident'] = df['Linea'].apply(extraer_sap)
+    df['SAP_Ident'] = df['SAP_Ident'].fillna(method='ffill')
 
-    df_netos = df_inicial[df_inicial['Linea'].str.contains('Total General', na=False)].copy()
+    df = df[df['Linea'].str.contains('Total General', na=False)].copy()
 
-    def parsear_netos(row):
+    def parsear(row):
         linea = row['Linea']
         return {
             'NETO':  safe_slice(linea, 0, 32).strip(),
             'Valor': linea[-20:].strip(),
-            'SAP':   row['SAP_Ident']
+            'SAP':   row['SAP_Ident'],
         }
 
-    netos_list = [parsear_netos(r) for _, r in df_netos.iterrows()]
-    df = pd.DataFrame(netos_list)
+    out = pd.DataFrame([parsear(r) for _, r in df.iterrows()])
+    if not out.empty:
+        out['Valor'] = out['Valor'].apply(to_num)
+        out['SAP']   = pd.to_numeric(out['SAP'], errors='coerce')
+    return out
 
-    def to_num(v):
-        try:
-            if pd.isna(v) or v == '':
-                return 0
-            return float(str(v).replace('.', '').replace(',', '.'))
-        except:
-            return 0
-
-    df['Valor'] = df['Valor'].apply(to_num)
-    df['SAP']   = pd.to_numeric(df['SAP'], errors='coerce')
-    return df
-
+# -------------------------------
+# Carga + Consolidación
+# -------------------------------
 def procesar_archivos(archivo_liquidacion, archivo_masterdata):
-    """
-    Pipeline de:
-    1) parsing de conceptos y netos,
-    2) identificación/propagación de SAP,
-    3) consolidación con MASTERDATA.
-    """
     try:
         contenido = archivo_liquidacion.getvalue().decode('latin-1', errors='ignore')
-        df_conceptos = procesar_liquidacion_power_query_style(contenido)
-        df_netos = procesar_netos_power_query_style(contenido)
+        df_conceptos = procesar_liquidacion_pipeline(contenido)
+        df_netos     = procesar_netos_pipeline(contenido)
 
         if df_conceptos.empty and df_netos.empty:
             st.error("No se pudieron extraer datos del archivo de liquidación.")
@@ -207,144 +198,109 @@ def procesar_archivos(archivo_liquidacion, archivo_masterdata):
         st.error(f"Traceback: {traceback.format_exc()}")
         return None, None, None
 
+# -------------------------------
+# Exportación a Excel (incluye SALARIO)
+# -------------------------------
 def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
-    """Genera archivo XLSX con hojas de NETOS y CONCEPTOS consolidadas."""
     output = io.BytesIO()
     try:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # --- HOJA NETOS ---
+            # --- NETOS ---
             if df_netos is not None and masterdata_df is not None:
-                netos = pd.merge(
-                    df_netos, masterdata_df,
-                    left_on='SAP', right_on='Nº pers.', how='left'
-                )
+                netos = pd.merge(df_netos, masterdata_df, left_on='SAP', right_on='Nº pers.', how='left')
+                netos = adjuntar_salario(netos)  # <-- asegurar SALARIO
+                # Selección/renombrado
                 cols_map = {
-                    'NETO': 'NETO', 'Valor': 'Valor', 'SAP': 'SAP',
-                    'Número ID': 'CÉDULA', 'Número de personal': 'NOMBRE',
-                    'División de personal': 'REGIONAL', 'Ce.coste': 'CE_COSTE',
-                    '     Importe': 'SALARIO', 'Fecha': 'F. ING',
-                    'Función': 'CARGO', 'Área de personal': 'NIVEL'
+                    'NETO':'NETO','Valor':'Valor','SAP':'SAP',
+                    'Número ID':'CÉDULA','Número de personal':'NOMBRE',
+                    'División de personal':'REGIONAL','Ce.coste':'CE_COSTE',
+                    'Fecha':'F. ING','Función':'CARGO','Área de personal':'NIVEL'
                 }
-                cols_ok = {k: v for k, v in cols_map.items() if k in netos.columns}
-                if cols_ok:
-                    df_final = netos[list(cols_ok.keys())].rename(columns=cols_ok)
-                    order = ['NETO','Valor','SAP','CÉDULA','NOMBRE','REGIONAL','CE_COSTE','SALARIO','F. ING','CARGO','NIVEL']
-                    df_final = df_final[[c for c in order if c in df_final.columns]]
-                    df_final.to_excel(writer, sheet_name='Netos', index=False)
+                cols_base = [c for c in cols_map.keys() if c in netos.columns]
+                df_final = netos[cols_base].rename(columns=cols_map)
+                # Añadir SALARIO (ya creado) y ordenar
+                df_final['SALARIO'] = netos['SALARIO']
+                order = ['NETO','Valor','SAP','CÉDULA','NOMBRE','REGIONAL','CE_COSTE','SALARIO','F. ING','CARGO','NIVEL']
+                df_final = df_final[[c for c in order if c in df_final.columns]]
+                df_final.to_excel(writer, sheet_name='Netos', index=False)
 
-            # --- HOJA CONCEPTOS ---
+            # --- CONCEPTOS (Preno_Convertida) ---
             if df_conceptos is not None and masterdata_df is not None:
-                conceptos = pd.merge(
-                    df_conceptos, masterdata_df,
-                    left_on='SAP', right_on='Nº pers.', how='left'
-                )
+                conceptos = pd.merge(df_conceptos, masterdata_df, left_on='SAP', right_on='Nº pers.', how='left')
+                conceptos = adjuntar_salario(conceptos)  # <-- asegurar SALARIO
                 cols_map = {
-                    'CÓDIGO': 'CÓDIGO', 'CONCEPTO': 'CONCEPTO',
-                    'CANTIDAD': 'CANTIDAD', 'VALOR': 'VALOR', 'SAP': 'SAP',
-                    'Número ID': 'CÉDULA', 'Número de personal': 'NOMBRE',
-                    '     Importe': 'SALARIO', 'Fecha': 'F. INGRESO',
-                    'Función': 'CARGO', 'Área de personal': 'NIVEL'
+                    'CÓDIGO':'CÓDIGO','CONCEPTO':'CONCEPTO','CANTIDAD':'CANTIDAD','VALOR':'VALOR','SAP':'SAP',
+                    'Número ID':'CÉDULA','Número de personal':'NOMBRE',
+                    'Fecha':'F. INGRESO','Función':'CARGO','Área de personal':'NIVEL'
                 }
-                cols_ok = {k: v for k, v in cols_map.items() if k in conceptos.columns}
-                if cols_ok:
-                    df_final = conceptos[list(cols_ok.keys())].rename(columns=cols_ok)
-                    order = ['CÓDIGO','CONCEPTO','CANTIDAD','VALOR','SAP','CÉDULA','NOMBRE','SALARIO','F. INGRESO','CARGO','NIVEL']
-                    df_final = df_final[[c for c in order if c in df_final.columns]]
-                    df_final.to_excel(writer, sheet_name='Conceptos', index=False)
+                cols_base = [c for c in cols_map.keys() if c in conceptos.columns]
+                df_final = conceptos[cols_base].rename(columns=cols_map)
+                df_final['SALARIO'] = conceptos['SALARIO']
+                order = ['CÓDIGO','CONCEPTO','CANTIDAD','VALOR','SAP','CÉDULA','NOMBRE','SALARIO','F. INGRESO','CARGO','NIVEL']
+                df_final = df_final[[c for c in order if c in df_final.columns]]
+                df_final.to_excel(writer, sheet_name='Preno_Convertida', index=False)
 
         output.seek(0)
         return output
+
     except Exception as e:
         st.error(f"Error al crear archivo Excel: {str(e)}")
         import traceback
         st.error(f"Traceback completo: {traceback.format_exc()}")
         return None
 
-# =========================
-# UI principal
-# =========================
+# -------------------------------
+# UI
+# -------------------------------
 def main():
-    st.title("📊 Jerónimo Martins Colombia — Nómina 2025")
+    st.title("Jerónimo Martins Colombia — Nómina 2025")
     st.markdown("""
-<div class="badges">
-  <span class="badge">Creado por Jeysshon</span>
-  <span class="badge">Parsing & Matching</span>
-  <span class="badge">HR Data · Toma de decisiones</span>
-</div>
-<div class="subtle">
-Este módulo consolida **conceptos de nómina y netos** mediante un pipeline de parsing posicional, 
-tokenización del **código de concepto**, identificación/propagación de **SAP ID** y matching con **MASTERDATA**. 
-El resultado es un **dataset listo para análisis** y soporte a decisiones.
-</div>
-""", unsafe_allow_html=True)
+    <div class="soft-card">
+      Consolidación de <strong>conceptos</strong> y <strong>netos</strong> mediante parsing posicional,
+      identificación/propagación de <strong>SAP ID</strong> y unión con <strong>MASTERDATA</strong>.
+      Salida: dataset listo para análisis y soporte a decisiones.
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.sidebar.header("📁 Cargar archivos")
-    archivo_liquidacion = st.sidebar.file_uploader(
-        "📄 Archivo de liquidación (.txt)",
-        type=['txt'],
-        help="Usa el .txt exportado con codificación latin-1 (CP1252)."
-    )
-    archivo_masterdata = st.sidebar.file_uploader(
-        "📊 MASTERDATA (.xlsx)",
-        type=['xlsx'],
-        help="Debe contener la columna 'Nº pers.' para el matching."
-    )
+    st.sidebar.header("Cargar archivos")
+    archivo_liquidacion = st.sidebar.file_uploader("Archivo de liquidación (.txt)", type=['txt'], help="Codificación latin-1 (CP1252).")
+    archivo_masterdata = st.sidebar.file_uploader("MASTERDATA (.xlsx)", type=['xlsx'], help="Debe incluir 'Nº pers.' para el matching.")
 
-    if st.sidebar.button("🚀 Procesar", type="primary"):
+    if st.sidebar.button("Procesar", type="primary"):
         if archivo_liquidacion is not None and archivo_masterdata is not None:
-            with st.spinner('⏳ Ejecutando pipeline de parsing y matching...'):
-                df_conceptos, df_netos, masterdata_df = procesar_archivos(
-                    archivo_liquidacion, archivo_masterdata
-                )
+            with st.spinner('Ejecutando parsing y matching...'):
+                df_conceptos, df_netos, masterdata_df = procesar_archivos(archivo_liquidacion, archivo_masterdata)
+            if df_conceptos is not None or df_netos is not None:
+                st.success("Procesamiento completado.")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Conceptos extraídos", len(df_conceptos) if df_conceptos is not None else 0)
+                c2.metric("Netos extraídos", len(df_netos) if df_netos is not None else 0)
+                c3.metric("Registros MASTERDATA", len(masterdata_df))
 
-                if df_conceptos is not None or df_netos is not None:
-                    st.success("✅ ¡Procesamiento completado!")
+                tab1, tab2 = st.tabs(["Vista previa", "Descargar"])
+                with tab1:
+                    st.subheader("Preno_Convertida — primeras 20 filas")
+                    if df_conceptos is not None:
+                        st.dataframe(df_conceptos.head(20), use_container_width=True)
+                    st.subheader("Netos — primeras 10 filas")
+                    if df_netos is not None:
+                        st.dataframe(df_netos.head(10), use_container_width=True)
 
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("📦 Conceptos extraídos", len(df_conceptos) if df_conceptos is not None else 0)
-                    with col2:
-                        st.metric("💰 Netos extraídos", len(df_netos) if df_netos is not None else 0)
-                    with col3:
-                        st.metric("👥 Registros MASTERDATA", len(masterdata_df))
-
-                    tab1, tab2 = st.tabs(["🔍 Vista previa", "📥 Descargar"])
-                    with tab1:
-                        st.markdown("**Conceptos (primeras 20 filas):**")
-                        if df_conceptos is not None:
-                            st.dataframe(df_conceptos.head(20), use_container_width=True)
-                        st.markdown("**Netos (primeras 10 filas):**")
-                        if df_netos is not None:
-                            st.dataframe(df_netos.head(10), use_container_width=True)
-
-                    with tab2:
-                        st.subheader("Descargar archivo procesado")
-                        excel_file = crear_excel_descarga(df_conceptos, df_netos, masterdata_df)
-                        if excel_file:
-                            st.download_button(
-                                label="📁 Descargar Excel (Dataset consolidado)",
-                                data=excel_file.getvalue(),
-                                file_name=f"JMC_Nomina2025_DatasetConsolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                type="primary"
-                            )
-                            st.success("✅ Dataset consolidado generado con éxito.")
-                        else:
-                            st.error("❌ No fue posible generar el archivo.")
+                with tab2:
+                    excel_file = crear_excel_descarga(df_conceptos, df_netos, masterdata_df)
+                    if excel_file:
+                        st.download_button(
+                            label="Descargar Excel (consolidado)",
+                            data=excel_file.getvalue(),
+                            file_name=f"JMC_Nomina2025_Consolidado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            type="primary"
+                        )
+                        st.caption("Archivo consolidado con Netos y Preno_Convertida (incluye SALARIO).")
+                    else:
+                        st.error("No fue posible generar el archivo.")
         else:
-            st.warning("⚠️ Carga ambos archivos para continuar.")
-
-    # Panel lateral técnico (sin nombrar ‘Power Query’)
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🧩 Especificaciones técnicas")
-    st.sidebar.markdown("""
-- **Codificación**: latin-1 (CP1252)  
-- **Identificación SAP**: detección por cabecera y *forward-fill*  
-- **Conceptos**: tokenización del **CÓDIGO** (Y*, Z*, 9*, 2*, /5*)  
-- **Offsets**: `CONCEPTO` (fin de código → col 50), `CANTIDAD` (50–70), `VALOR` (69–89)  
-- **Matching**: unión con MASTERDATA por **SAP = 'Nº pers.'**  
-- **Salida**: Excel con hojas **Netos** y **Conceptos**
-""")
+            st.warning("Carga ambos archivos para continuar.")
 
     st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
     st.caption("Creado por Jeysshon · Jerónimo Martins Colombia · Nómina 2025")
