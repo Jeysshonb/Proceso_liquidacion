@@ -288,9 +288,31 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
                 cols_base = [c for c in cols_map.keys() if c in netos.columns]
                 df_final = netos[cols_base].rename(columns=cols_map)
                 df_final['SALARIO'] = netos['SALARIO']
+                
+                # Convertir F. ING a formato fecha
+                if 'F. ING' in df_final.columns:
+                    df_final['F. ING'] = pd.to_datetime(df_final['F. ING'], errors='coerce')
+                
                 order = ['NETO','Valor','SAP','CÉDULA','NOMBRE','REGIONAL','CE_COSTE','SALARIO','F. ING','CARGO','NIVEL']
                 df_final = df_final[[c for c in order if c in df_final.columns]]
                 df_final.to_excel(writer, sheet_name='Netos', index=False)
+                
+                # Aplicar formato de fecha a la columna F. ING
+                if 'F. ING' in df_final.columns:
+                    workbook = writer.book
+                    worksheet = writer.sheets['Netos']
+                    date_format = workbook.add_format({'num_format': 'dd/mm/yyyy'})
+                    
+                    # Encontrar la columna F. ING
+                    f_ing_col = None
+                    for idx, col in enumerate(df_final.columns):
+                        if col == 'F. ING':
+                            f_ing_col = idx
+                            break
+                    
+                    if f_ing_col is not None:
+                        col_letter = chr(65 + f_ing_col)  # A=65, B=66, etc.
+                        worksheet.set_column(f'{col_letter}:{col_letter}', 12, date_format)
 
             if df_conceptos is not None and masterdata_df is not None:
                 conceptos = pd.merge(df_conceptos, masterdata_df, left_on='SAP', right_on='Nº pers.', how='left')
@@ -303,9 +325,31 @@ def crear_excel_descarga(df_conceptos, df_netos, masterdata_df):
                 cols_base = [c for c in cols_map.keys() if c in conceptos.columns]
                 df_final = conceptos[cols_base].rename(columns=cols_map)
                 df_final['SALARIO'] = conceptos['SALARIO']
+                
+                # Convertir F. INGRESO a formato fecha
+                if 'F. INGRESO' in df_final.columns:
+                    df_final['F. INGRESO'] = pd.to_datetime(df_final['F. INGRESO'], errors='coerce')
+                
                 order = ['CÓDIGO','CONCEPTO','CANTIDAD','VALOR','SAP','CÉDULA','NOMBRE','SALARIO','F. INGRESO','CARGO','NIVEL']
                 df_final = df_final[[c for c in order if c in df_final.columns]]
                 df_final.to_excel(writer, sheet_name='Preno_Convertida', index=False)
+                
+                # Aplicar formato de fecha a la columna F. INGRESO
+                if 'F. INGRESO' in df_final.columns:
+                    workbook = writer.book
+                    worksheet = writer.sheets['Preno_Convertida']
+                    date_format = workbook.add_format({'num_format': 'dd/mm/yyyy'})
+                    
+                    # Encontrar la columna F. INGRESO
+                    f_ingreso_col = None
+                    for idx, col in enumerate(df_final.columns):
+                        if col == 'F. INGRESO':
+                            f_ingreso_col = idx
+                            break
+                    
+                    if f_ingreso_col is not None:
+                        col_letter = chr(65 + f_ingreso_col)  # A=65, B=66, etc.
+                        worksheet.set_column(f'{col_letter}:{col_letter}', 12, date_format)
 
         output.seek(0)
         return output
