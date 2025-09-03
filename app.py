@@ -379,6 +379,119 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Agregar script adicional para asegurar la detección
+st.markdown("""
+<script>
+// Función mejorada de detección de tema
+function updateTheme() {
+    // Buscar indicadores del tema oscuro
+    const sidebar = document.querySelector('section[data-testid="stSidebar"]');
+    const stApp = document.querySelector('.stApp');
+    
+    let isDark = false;
+    
+    // Métodos de detección
+    if (sidebar) {
+        const bgColor = window.getComputedStyle(sidebar).backgroundColor;
+        isDark = bgColor.includes('38, 39, 48') || bgColor.includes('14, 17, 23') || bgColor.includes('40, 42, 54');
+    }
+    
+    // Detectar por atributo data-theme si existe
+    if (stApp && stApp.getAttribute('data-theme') === 'dark') {
+        isDark = true;
+    }
+    
+    // Detectar por clase CSS
+    if (document.body.classList.contains('dark') || document.documentElement.classList.contains('dark')) {
+        isDark = true;
+    }
+    
+    // Aplicar variables CSS
+    const root = document.documentElement;
+    if (isDark) {
+        root.style.setProperty('--bg-primary', '#0e1117');
+        root.style.setProperty('--bg-secondary', '#262730');
+        root.style.setProperty('--text-primary', '#fafafa');
+        root.style.setProperty('--text-secondary', '#a3a8b8');
+        root.style.setProperty('--glass-bg', 'rgba(38, 39, 48, 0.8)');
+        root.style.setProperty('--glass-border', 'rgba(163, 168, 184, 0.2)');
+        root.style.setProperty('--shadow', '0 4px 6px -1px rgba(0, 0, 0, 0.4)');
+        root.style.setProperty('--hover-bg', 'rgba(38, 39, 48, 0.9)');
+        
+        // Actualizar tags para tema oscuro
+        const tags = document.querySelectorAll('.tag-success');
+        tags.forEach(tag => {
+            tag.style.background = 'rgba(16, 185, 129, 0.25)';
+            tag.style.color = '#34d399';
+        });
+        
+        const primaryTags = document.querySelectorAll('.tag-primary');
+        primaryTags.forEach(tag => {
+            tag.style.background = 'rgba(59, 130, 246, 0.25)';
+            tag.style.color = '#60a5fa';
+        });
+        
+        const warningTags = document.querySelectorAll('.tag-warning');
+        warningTags.forEach(tag => {
+            tag.style.background = 'rgba(245, 158, 11, 0.25)';
+            tag.style.color = '#fbbf24';
+        });
+    } else {
+        // Tema claro
+        root.style.setProperty('--bg-primary', '#ffffff');
+        root.style.setProperty('--bg-secondary', '#f0f2f6');
+        root.style.setProperty('--text-primary', '#262730');
+        root.style.setProperty('--text-secondary', '#6c757d');
+        root.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.9)');
+        root.style.setProperty('--glass-border', 'rgba(108, 117, 125, 0.2)');
+        root.style.setProperty('--shadow', '0 4px 6px -1px rgba(0, 0, 0, 0.1)');
+        root.style.setProperty('--hover-bg', 'rgba(240, 242, 246, 0.8)');
+        
+        // Restaurar colores originales de tags
+        const tags = document.querySelectorAll('.tag-success');
+        tags.forEach(tag => {
+            tag.style.background = 'rgba(16, 185, 129, 0.2)';
+            tag.style.color = '#10b981';
+        });
+        
+        const primaryTags = document.querySelectorAll('.tag-primary');
+        primaryTags.forEach(tag => {
+            tag.style.background = 'rgba(59, 130, 246, 0.2)';
+            tag.style.color = '#3b82f6';
+        });
+        
+        const warningTags = document.querySelectorAll('.tag-warning');
+        warningTags.forEach(tag => {
+            tag.style.background = 'rgba(245, 158, 11, 0.2)';
+            tag.style.color = '#f59e0b';
+        });
+    }
+}
+
+// Ejecutar inmediatamente
+setTimeout(updateTheme, 100);
+
+// Observar cambios en el DOM
+const observer = new MutationObserver(function(mutations) {
+    updateTheme();
+});
+
+// Observar cambios en el body y sus hijos
+observer.observe(document.body, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+    attributeFilter: ['style', 'class', 'data-theme']
+});
+
+// Ejecutar cada 2 segundos como respaldo
+setInterval(updateTheme, 2000);
+
+// Ejecutar cuando la página esté completamente cargada
+window.addEventListener('load', updateTheme);
+</script>
+""", unsafe_allow_html=True)
+
 # -------------------------------
 # Utilidades
 # -------------------------------
