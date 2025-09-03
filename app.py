@@ -238,25 +238,58 @@ st.markdown("""
         line-height: 1.2;
     }
 
-    /* Status cards responsivos */
+    /* Status cards responsivos y adaptativos */
     .status-card {
-        background: var(--glass-bg);
-        border: 1px solid var(--glass-border);
+        background: var(--glass-bg) !important;
+        border: 1px solid var(--glass-border) !important;
         border-radius: 10px;
         padding: clamp(0.8rem, 2vw, 1rem);
         margin: 0.5rem 0;
         backdrop-filter: blur(10px);
         transition: all 0.3s ease;
+        color: var(--text-primary) !important;
     }
     
     .status-success {
-        border-color: var(--success-color);
-        background: rgba(16, 185, 129, 0.1);
+        border-color: var(--success-color) !important;
+        background: rgba(16, 185, 129, 0.15) !important;
     }
     
     .status-info {
-        border-color: var(--accent-color);
-        background: rgba(14, 165, 233, 0.1);
+        border-color: var(--accent-color) !important;
+        background: rgba(14, 165, 233, 0.15) !important;
+    }
+
+    /* Override de elementos específicos de Streamlit para tema oscuro */
+    .stButton > button {
+        background-color: var(--glass-bg) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--glass-border) !important;
+    }
+
+    .stFileUploader section {
+        background-color: var(--glass-bg) !important;
+        border: 2px dashed var(--glass-border) !important;
+        color: var(--text-primary) !important;
+    }
+
+    .stMarkdown {
+        color: var(--text-primary) !important;
+    }
+
+    /* Tabs adaptativos para Streamlit */
+    .stTabs [data-baseweb="tab-list"] {
+        background: var(--glass-bg) !important;
+        border: 1px solid var(--glass-border) !important;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        color: var(--text-secondary) !important;
+    }
+
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background: var(--gradient-primary) !important;
+        color: white !important;
     }
     
     /* Footer adaptivo */
