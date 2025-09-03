@@ -673,13 +673,31 @@ def main():
         help="Archivo Excel que debe incluir la columna 'Nº pers.' para el matching con SAP."
     )
     
-    # Estado de archivos
+    # Estado de archivos mejorado
     if archivo_liquidacion or archivo_masterdata:
         st.sidebar.markdown("### 📋 Estado de Archivos")
         if archivo_liquidacion:
-            st.sidebar.success("✅ Liquidación cargada")
+            st.sidebar.markdown("""
+            <div class="status-card status-success">
+                ✅ <strong>Liquidación cargada</strong><br>
+                <small>📄 {}</small>
+            </div>
+            """.format(archivo_liquidacion.name), unsafe_allow_html=True)
         if archivo_masterdata:
-            st.sidebar.success("✅ MASTERDATA cargado")
+            formato = archivo_masterdata.name.split('.')[-1].upper()
+            st.sidebar.markdown(f"""
+            <div class="status-card status-success">
+                ✅ <strong>MASTERDATA cargado</strong><br>
+                <small>📊 {archivo_masterdata.name} ({formato})</small>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.sidebar.markdown("""
+        <div class="status-card status-info">
+            📋 <strong>Archivos pendientes</strong><br>
+            <small>Carga ambos archivos para continuar</small>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Botón de procesamiento mejorado
     if st.sidebar.button("🚀 Procesar Datos", type="primary", use_container_width=True):
