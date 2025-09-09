@@ -556,7 +556,7 @@ def main():
                             neto_total = df_netos['Valor'].sum()
                             st.metric("Neto total", f"${neto_total:,.0f}")
 
-                with tab3:
+                with tab2:
                     st.subheader("📥 Descarga de Resultados")
                     
                     excel_file = crear_excel_descarga(df_conceptos, df_netos, masterdata_df)
